@@ -44,7 +44,8 @@ public class RideLocationService extends Service {
       @Override public void onLocationResult(LocationResult result) {
         if (result == null || result.getLastLocation() == null) return;
         android.location.Location l = result.getLastLocation();
-        RideBridge.pushLocation(l.getLatitude(), l.getLongitude(), l.getSpeed(), l.getBearing(), l.getAccuracy());
+        RideNativeStore.append(RideLocationService.this, l);
+        RideBridge.pushLocation(l.getLatitude(), l.getLongitude(), l.getSpeed(), l.getBearing(), l.getAccuracy(), l.getTime());
       }
     };
   }
