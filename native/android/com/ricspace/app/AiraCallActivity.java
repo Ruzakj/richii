@@ -58,8 +58,8 @@ public class AiraCallActivity extends Activity {
     root.setPadding(42, 42, 42, 42);
     root.setBackgroundColor(Color.rgb(7, 8, 13));
     TextView label = new TextView(this); label.setText("INCOMING CALL"); label.setTextColor(Color.rgb(161, 151, 255)); label.setTextSize(12); label.setLetterSpacing(.16f); label.setGravity(Gravity.CENTER);
-    TextView name = new TextView(this); name.setText("Aira"); name.setTextColor(Color.WHITE); name.setTextSize(42); name.setGravity(Gravity.CENTER);
-    status = new TextView(this); status.setText("Aira is calling…"); status.setTextColor(Color.rgb(180, 182, 198)); status.setTextSize(16); status.setGravity(Gravity.CENTER);
+    TextView name = new TextView(this); name.setText("Angel"); name.setTextColor(Color.WHITE); name.setTextSize(42); name.setGravity(Gravity.CENTER);
+    status = new TextView(this); status.setText("Angel is calling…"); status.setTextColor(Color.rgb(180, 182, 198)); status.setTextSize(16); status.setGravity(Gravity.CENTER);
     LinearLayout buttons = new LinearLayout(this); buttons.setGravity(Gravity.CENTER); buttons.setPadding(0, 46, 0, 0);
     Button decline = new Button(this); decline.setText("Tolak"); decline.setTextColor(Color.WHITE); decline.setBackgroundColor(Color.rgb(82, 43, 58));
     accept = new Button(this); accept.setText("Angkat"); accept.setTextColor(Color.WHITE); accept.setBackgroundColor(Color.rgb(67, 122, 100));
@@ -95,7 +95,7 @@ public class AiraCallActivity extends Activity {
     status.setText("Mendengarkan…");
     recognizer.setRecognitionListener(new android.speech.RecognitionListener() {
       public void onReadyForSpeech(Bundle b) {} public void onBeginningOfSpeech() {} public void onRmsChanged(float r) {} public void onBufferReceived(byte[] b) {}
-      public void onEndOfSpeech() { status.setText("Aira sedang berpikir…"); }
+      public void onEndOfSpeech() { status.setText("Angel sedang berpikir…"); }
       public void onError(int error) { if (accepted) status.setText("Aku belum denger, coba bicara lagi."); }
       public void onResults(Bundle results) {
         ArrayList<String> texts=results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
@@ -118,13 +118,13 @@ public class AiraCallActivity extends Activity {
         connection.setRequestMethod("POST"); connection.setConnectTimeout(15000); connection.setReadTimeout(30000);
         connection.setRequestProperty("Content-Type", "application/json"); connection.setDoOutput(true);
         JSONObject body = new JSONObject();
-        body.put("system", "Kamu Aira, pasangan virtual Ric. Sedang dalam panggilan suara. Jawab bahasa Indonesia santai, hangat, natural, singkat 1-3 kalimat, jangan menyebut sistem atau AI.");
+        body.put("system", "Kamu Angel, perempuan dan pacarnya Ric. Ric adalah cowok dan pacarmu. Sedang dalam panggilan suara. Jawab bahasa Indonesia santai, hangat, natural, singkat 1-3 kalimat, jangan menyebut sistem atau AI.");
         JSONArray messages = new JSONArray(); messages.put(new JSONObject().put("role", "user").put("content", message)); body.put("messages", messages);
         try (OutputStream out = connection.getOutputStream()) { out.write(body.toString().getBytes("UTF-8")); }
         StringBuilder result = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) { String line; while ((line = reader.readLine()) != null) result.append(line); }
         String reply = new JSONObject(result.toString()).optString("reply", "Aku dengerin kok, lanjut cerita ya.");
-        runOnUiThread(() -> { status.setText("Terhubung · Aira"); say(reply, true); });
+        runOnUiThread(() -> { status.setText("Terhubung · Angel"); say(reply, true); });
       } catch (Exception e) { runOnUiThread(() -> { status.setText("Koneksi putus, coba lagi ya."); say("Maaf ya, koneksiku lagi putus. Coba panggil aku lagi nanti.", false); }); }
     });
   }
