@@ -45,7 +45,9 @@ public class AiraCallActivity extends Activity {
     getWindow().setStatusBarColor(Color.BLACK);
     getWindow().setNavigationBarColor(Color.BLACK);
     buildUi();
-    tts = new TextToSpeech(this, ok -> { if (ok) tts.setLanguage(new Locale("id", "ID")); });
+    tts = new TextToSpeech(this, statusCode -> {
+      if (statusCode == TextToSpeech.SUCCESS) tts.setLanguage(new Locale("id", "ID"));
+    });
     if (SpeechRecognizer.isRecognitionAvailable(this)) recognizer = SpeechRecognizer.createSpeechRecognizer(this);
   }
 
