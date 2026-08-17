@@ -4,6 +4,9 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
+import android.provider.Settings;
+import android.net.Uri;
+import android.content.SharedPreferences;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -32,9 +35,21 @@ public final class AiraBridge {
     if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(host, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
       ActivityCompat.requestPermissions(host, new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
     } else {
+      requestExactAlarmAccess(host);
       scheduleDailyRoutine(host);
       scheduleTodayTest(host);
     }
+  }
+
+  private static void requestExactAlarmAccess(Activity host) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return;
+    AlarmManager manager = (AlarmManager) host.getSystemService(Context.ALARM_SERVICE);
+    if (manager == null || manager.canScheduleExactAlarms()) return;
+    try {
+      Intent settings = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+        Uri.parse("package:" + host.getPackageName()));
+      host.startActivity(settings);
+    } catch (Exception ignored) {}
   }
 
   @JavascriptInterface
@@ -87,9 +102,20 @@ public final class AiraBridge {
     Calendar target = Calendar.getInstance();
     target.set(2026, Calendar.AUGUST, 18, 3, 50, 0);
     target.set(Calendar.MILLISECOND, 0);
-    if (target.getTimeInMillis() <= now.getTimeInMillis()) return;
-    // One 25-second local missed-call test for today.
-    scheduleAlarm(context, ACTION_CALL, target.getTimeInMillis(), 5350, 4499, 25);
+    SharedPreferences prefs = context.getSharedPreferences("ric_angel_tests", Context.MODE_PRIVATE);
+    String testKey = "morning_call_20260818";
+    if (prefs.getBoolean(testKey, false)) return;
+    long when = target.getTimeInMillis();
+    // If the APK is first opened after 03.50 today, give Ric a reliable late test
+    // instead of silently dropping it. The fallback expires at 04.20 WIB.
+    Calendar fallbackLimit = Calendar.getInstance();
+    fallbackLimit.set(2026, Calendar.AUGUST, 18, 4, 20, 0);
+    if (when <= now.getTimeInMillis()) {
+      if (now.getTimeInMillis() > fallbackLimit.getTimeInMillis()) return;
+      when = now.getTimeInMillis() + 90_000L;
+    }
+    scheduleAlarm(context, ACTION_CALL, when, 5350, 4499, 25);
+    prefs.edit().putBoolean(testKey, true).apply();
   }
 
   private static void scheduleAlarm(Context context, String action, long when, int requestCode, int notificationId, int durationSeconds) {
