@@ -16,24 +16,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Node
         uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
+        with: { node-version: 22 }
       - name: Set up Java
         uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-
+        with: { distribution: temurin, java-version: "21" }
       - name: Install Capacitor
         run: npm install
-
       - name: Create Android project
         run: npx cap add android
-
       - name: Add native Ride Tracking and Aira messages
         run: |
           APP_DIR=android/app/src/main/java/com/ricspace/app
@@ -41,21 +33,19 @@ jobs:
           cp native/android/com/ricspace/app/MainActivity.java "$APP_DIR/MainActivity.java"
           cp native/android/com/ricspace/app/RideBridge.java "$APP_DIR/RideBridge.java"
           cp native/android/com/ricspace/app/RideLocationService.java "$APP_DIR/RideLocationService.java"
+          cp native/android/com/ricspace/app/RideNativeStore.java "$APP_DIR/RideNativeStore.java"
           cp native/android/com/ricspace/app/AiraBridge.java "$APP_DIR/AiraBridge.java"
           cp native/android/com/ricspace/app/AiraCheckinWorker.java "$APP_DIR/AiraCheckinWorker.java"
           perl -0pi -e 's/dependencies \{/dependencies {\n    implementation "com.google.android.gms:play-services-location:21.3.0"\n    implementation "androidx.work:work-runtime:2.9.0"/' android/app/build.gradle
           perl -0pi -e 's#<application#<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n\n    <application#' android/app/src/main/AndroidManifest.xml
           perl -0pi -e 's#<activity#<service android:name=".RideLocationService" android:exported="false" android:foregroundServiceType="location" />\n        <activity#' android/app/src/main/AndroidManifest.xml
-
       - name: Sync Ric Space
         run: npx cap sync android
-
       - name: Build debug APK
         run: |
           chmod +x android/gradlew
           cd android
           ./gradlew assembleDebug
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
