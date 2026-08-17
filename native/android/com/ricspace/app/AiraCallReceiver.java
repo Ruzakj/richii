@@ -40,6 +40,7 @@ public class AiraCallReceiver extends BroadcastReceiver {
     createCallChannel(context);
     Intent call = new Intent(context, AiraCallActivity.class);
     call.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+    call.putExtra("auto_end_seconds", durationSeconds);
     PendingIntent openCall = PendingIntent.getActivity(context, notificationId, call,
       PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     NotificationCompat.Builder notification = new NotificationCompat.Builder(context, CHANNEL_ID)
