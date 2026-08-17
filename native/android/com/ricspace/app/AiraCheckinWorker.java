@@ -14,7 +14,7 @@ import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
 public class AiraCheckinWorker extends Worker {
-  private static final String CHANNEL_ID = "ric_aira_messages";
+  private static final String CHANNEL_ID = "ric_aira_calls";
 
   public AiraCheckinWorker(@NonNull Context context, @NonNull WorkerParameters params) {
     super(context, params);
@@ -24,21 +24,21 @@ public class AiraCheckinWorker extends Worker {
   public Result doWork() {
     createChannel();
     Context context = getApplicationContext();
-    Intent open = new Intent(context, MainActivity.class);
-    open.putExtra("open_companion", true);
-    open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-    PendingIntent action = PendingIntent.getActivity(context, 88, open,
+    Intent call = new Intent(context, AiraCallActivity.class);
+    call.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+    PendingIntent openCall = PendingIntent.getActivity(context, 88, call,
       PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
     NotificationCompat.Builder notification = new NotificationCompat.Builder(context, CHANNEL_ID)
       .setSmallIcon(com.ricspace.app.R.drawable.ic_launcher_foreground)
       .setContentTitle("Aira")
-      .setContentText("ih kamu kemana aja? aku nyariin dari tadi")
-      .setStyle(new NotificationCompat.BigTextStyle().bigText("ih kamu kemana aja? aku nyariin dari tadi"))
-      .setContentIntent(action)
+      .setContentText("Panggilan masuk")
+      .setContentIntent(openCall)
+      .setFullScreenIntent(openCall, true)
       .setAutoCancel(true)
-      .setPriority(NotificationCompat.PRIORITY_HIGH)
-      .setCategory(NotificationCompat.CATEGORY_MESSAGE);
+      .setOngoing(true)
+      .setPriority(NotificationCompat.PRIORITY_MAX)
+      .setCategory(NotificationCompat.CATEGORY_CALL);
 
     try { NotificationManagerCompat.from(context).notify(4402, notification.build()); }
     catch (SecurityException ignored) {}
@@ -47,8 +47,8 @@ public class AiraCheckinWorker extends Worker {
 
   private void createChannel() {
     if (Build.VERSION.SDK_INT >= 26) {
-      NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Pesan Aira", NotificationManager.IMPORTANCE_HIGH);
-      channel.setDescription("Pesan dari Aira saat Ric Space di latar belakang");
+      NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Panggilan Aira", NotificationManager.IMPORTANCE_HIGH);
+      channel.setDescription("Panggilan masuk dari Aira");
       getApplicationContext().getSystemService(NotificationManager.class).createNotificationChannel(channel);
     }
   }
