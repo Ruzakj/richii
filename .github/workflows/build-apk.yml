@@ -34,6 +34,17 @@ jobs:
       - name: Create Android project
         run: npx cap add android
 
+      - name: Add native Ride Tracking
+        run: |
+          APP_DIR=android/app/src/main/java/com/ricspace/app
+          mkdir -p "$APP_DIR"
+          cp native/android/com/ricspace/app/MainActivity.java "$APP_DIR/MainActivity.java"
+          cp native/android/com/ricspace/app/RideBridge.java "$APP_DIR/RideBridge.java"
+          cp native/android/com/ricspace/app/RideLocationService.java "$APP_DIR/RideLocationService.java"
+          perl -0pi -e 's/dependencies \{/dependencies {\n    implementation "com.google.android.gms:play-services-location:21.3.0"/' android/app/build.gradle
+          perl -0pi -e 's#<application#<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n\n    <application#' android/app/src/main/AndroidManifest.xml
+          perl -0pi -e 's#<activity#<service android:name=".RideLocationService" android:exported="false" android:foregroundServiceType="location" />\n        <activity#' android/app/src/main/AndroidManifest.xml
+
       - name: Sync Ric Space
         run: npx cap sync android
 
