@@ -28,7 +28,11 @@ public final class AiraBridge {
   static void attach(Activity host, WebView view) {
     activity = host;
     view.addJavascriptInterface(new AiraBridge(), "RicAiraNative");
-    scheduleTonightTest(host);
+    if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(host, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+      ActivityCompat.requestPermissions(host, new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
+    } else {
+      scheduleTonightTest(host);
+    }
   }
 
   @JavascriptInterface
