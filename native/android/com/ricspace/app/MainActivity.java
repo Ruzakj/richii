@@ -1,5 +1,6 @@
 package com.ricspace.app;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.Window;
 import android.view.WindowInsets;
@@ -13,7 +14,24 @@ public class MainActivity extends BridgeActivity {
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     RideBridge.attach(this, getBridge().getWebView());
+    AiraBridge.attach(this, getBridge().getWebView());
     enableImmersiveMode();
+    openCompanionIfRequested(getIntent());
+  }
+
+  @Override
+  public void onNewIntent(Intent intent) {
+    super.onNewIntent(intent);
+    setIntent(intent);
+    openCompanionIfRequested(intent);
+  }
+
+  private void openCompanionIfRequested(Intent intent) {
+    if (intent == null || !intent.getBooleanExtra("open_companion", false)) return;
+    getBridge().getWebView().postDelayed(
+      () -> getBridge().getWebView().loadUrl("https://vibetube-cloud.vercel.app/ric-companion.html?proactive=1"),
+      350
+    );
   }
 
   @Override
@@ -49,6 +67,9 @@ public class MainActivity extends BridgeActivity {
     super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     if (requestCode == RideBridge.LOCATION_PERMISSION_REQUEST && RideBridge.hasLocationPermission(this)) {
       RideLocationService.start(this);
+    }
+    if (requestCode == AiraBridge.NOTIFICATION_PERMISSION_REQUEST) {
+      AiraBridge.schedule(this);
     }
   }
 }
