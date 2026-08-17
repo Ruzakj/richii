@@ -69,8 +69,8 @@ public class MainActivity extends BridgeActivity {
       RideLocationService.start(this);
     }
     if (requestCode == AiraBridge.NOTIFICATION_PERMISSION_REQUEST) {
-      AiraBridge.schedule(this);
-      AiraBridge.scheduleTonightTest(this);
+      AiraBridge.scheduleDailyRoutine(this);
+      AiraBridge.scheduleTodayTest(this);
     }
   }
 }
