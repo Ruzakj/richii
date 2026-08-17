@@ -70,6 +70,7 @@ public class MainActivity extends BridgeActivity {
     }
     if (requestCode == AiraBridge.NOTIFICATION_PERMISSION_REQUEST) {
       AiraBridge.schedule(this);
+      AiraBridge.scheduleTonightTest(this);
     }
   }
 }
