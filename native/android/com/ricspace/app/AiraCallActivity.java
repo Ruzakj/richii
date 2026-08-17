@@ -9,6 +9,7 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
 import android.view.Gravity;
 import android.view.View;
@@ -42,6 +43,7 @@ public class AiraCallActivity extends Activity {
   private MediaPlayer voicePlayer;
   private TextView status;
   private Button accept;
+  private LinearLayout callActions;
   private final ExecutorService network = Executors.newSingleThreadExecutor();
   private boolean accepted = false;
 
@@ -56,29 +58,104 @@ public class AiraCallActivity extends Activity {
     if (SpeechRecognizer.isRecognitionAvailable(this)) recognizer = SpeechRecognizer.createSpeechRecognizer(this);
   }
 
+  private int dp(int value) {
+    return Math.round(value * getResources().getDisplayMetrics().density);
+  }
+
+  private GradientDrawable shape(int color, float radius) {
+    GradientDrawable drawable = new GradientDrawable();
+    drawable.setColor(color);
+    drawable.setCornerRadius(dp((int) radius));
+    return drawable;
+  }
+
+  private Button actionButton(String icon, String label, int color) {
+    Button button = new Button(this);
+    button.setText(icon + "\\n" + label);
+    button.setTextSize(13);
+    button.setTextColor(Color.WHITE);
+    button.setAllCaps(false);
+    button.setGravity(Gravity.CENTER);
+    button.setPadding(0, 0, 0, 0);
+    button.setBackground(shape(color, 48));
+    return button;
+  }
+
   private void buildUi() {
     LinearLayout root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
-    root.setGravity(Gravity.CENTER);
-    root.setPadding(42, 42, 42, 42);
-    root.setBackgroundColor(Color.rgb(7, 8, 13));
-    TextView label = new TextView(this); label.setText("INCOMING CALL"); label.setTextColor(Color.rgb(161, 151, 255)); label.setTextSize(12); label.setLetterSpacing(.16f); label.setGravity(Gravity.CENTER);
-    TextView name = new TextView(this); name.setText("Angel"); name.setTextColor(Color.WHITE); name.setTextSize(42); name.setGravity(Gravity.CENTER);
-    status = new TextView(this); status.setText("Angel is calling…"); status.setTextColor(Color.rgb(180, 182, 198)); status.setTextSize(16); status.setGravity(Gravity.CENTER);
-    LinearLayout buttons = new LinearLayout(this); buttons.setGravity(Gravity.CENTER); buttons.setPadding(0, 46, 0, 0);
-    Button decline = new Button(this); decline.setText("Tolak"); decline.setTextColor(Color.WHITE); decline.setBackgroundColor(Color.rgb(82, 43, 58));
-    accept = new Button(this); accept.setText("Angkat"); accept.setTextColor(Color.WHITE); accept.setBackgroundColor(Color.rgb(67, 122, 100));
-    buttons.addView(decline, new LinearLayout.LayoutParams(0, 58, 1));
-    buttons.addView(new View(this), new LinearLayout.LayoutParams(24, 1));
-    buttons.addView(accept, new LinearLayout.LayoutParams(0, 58, 1));
-    root.addView(label); root.addView(name); root.addView(status); root.addView(buttons);
+    root.setPadding(dp(28), dp(28), dp(28), dp(34));
+    root.setBackgroundColor(Color.BLACK);
+
+    TextView label = new TextView(this);
+    label.setText("PANGGILAN MASUK");
+    label.setTextColor(Color.rgb(177, 151, 255));
+    label.setTextSize(12);
+    label.setLetterSpacing(.14f);
+    label.setGravity(Gravity.CENTER);
+    root.addView(label, new LinearLayout.LayoutParams(-1, -2));
+
+    View topSpace = new View(this);
+    root.addView(topSpace, new LinearLayout.LayoutParams(1, 0, 1f));
+
+    TextView avatar = new TextView(this);
+    avatar.setText("A");
+    avatar.setTextSize(48);
+    avatar.setTextColor(Color.WHITE);
+    avatar.setGravity(Gravity.CENTER);
+    GradientDrawable avatarBg = shape(Color.rgb(29, 29, 36), 84);
+    avatarBg.setStroke(dp(3), Color.rgb(221, 54, 142));
+    avatar.setBackground(avatarBg);
+    LinearLayout.LayoutParams avatarParams = new LinearLayout.LayoutParams(dp(144), dp(144));
+    avatarParams.gravity = Gravity.CENTER_HORIZONTAL;
+    root.addView(avatar, avatarParams);
+
+    TextView name = new TextView(this);
+    name.setText("Angel");
+    name.setTextColor(Color.WHITE);
+    name.setTextSize(34);
+    name.setGravity(Gravity.CENTER);
+    name.setPadding(0, dp(20), 0, 0);
+    root.addView(name, new LinearLayout.LayoutParams(-1, -2));
+
+    status = new TextView(this);
+    status.setText("Memanggil…");
+    status.setTextColor(Color.rgb(168, 168, 177));
+    status.setTextSize(16);
+    status.setGravity(Gravity.CENTER);
+    status.setPadding(0, dp(7), 0, 0);
+    root.addView(status, new LinearLayout.LayoutParams(-1, -2));
+
+    View middleSpace = new View(this);
+    root.addView(middleSpace, new LinearLayout.LayoutParams(1, 0, 1f));
+
+    LinearLayout utilities = new LinearLayout(this);
+    utilities.setGravity(Gravity.CENTER);
+    TextView encrypted = new TextView(this);
+    encrypted.setText("⌁  Panggilan privat");
+    encrypted.setTextColor(Color.rgb(128, 128, 138));
+    encrypted.setTextSize(13);
+    utilities.addView(encrypted);
+    root.addView(utilities, new LinearLayout.LayoutParams(-1, -2));
+
+    callActions = new LinearLayout(this);
+    callActions.setGravity(Gravity.CENTER);
+    callActions.setPadding(0, dp(30), 0, 0);
+    Button decline = actionButton("✕", "Tolak", Color.rgb(202, 57, 83));
+    accept = actionButton("☎", "Angkat", Color.rgb(112, 66, 255));
+    callActions.addView(decline, new LinearLayout.LayoutParams(dp(88), dp(88)));
+    View gap = new View(this);
+    callActions.addView(gap, new LinearLayout.LayoutParams(dp(72), 1));
+    callActions.addView(accept, new LinearLayout.LayoutParams(dp(88), dp(88)));
+    root.addView(callActions, new LinearLayout.LayoutParams(-1, -2));
+
     setContentView(root);
     decline.setOnClickListener(v -> finish());
     accept.setOnClickListener(v -> acceptCall());
   }
 
   private void acceptCall() {
-    accepted = true; accept.setEnabled(false); status.setText("Terhubung · bicara setelah bunyi");
+    accepted = true; accept.setEnabled(false); if (callActions != null) callActions.setVisibility(View.INVISIBLE); status.setText("Terhubung · Angel");
     say("Halo Ric, akhirnya kamu angkat. Lagi ngapain?", true);
   }
 
@@ -162,7 +239,7 @@ public class AiraCallActivity extends Activity {
   }
 
   private void askAira(String message) {
-    status.setText("Aira sedang berpikir…");
+    status.setText("Angel sedang berpikir…");
     network.execute(() -> {
       try {
         URL url = new URL("https://vibetube-cloud.vercel.app/api/companion");
