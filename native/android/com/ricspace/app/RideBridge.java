@@ -4,6 +4,7 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.webkit.JavascriptInterface;
@@ -39,6 +40,14 @@ public final class RideBridge {
   @JavascriptInterface
   public void stop() {
     if (activity != null) RideLocationService.stop(activity);
+  }
+
+  @JavascriptInterface
+  public void setFullscreenLandscape(final boolean enabled) {
+    if (activity == null) return;
+    activity.runOnUiThread(() -> activity.setRequestedOrientation(
+      enabled ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    ));
   }
 
   static boolean hasLocationPermission(Context context) {
