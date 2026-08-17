@@ -9,6 +9,7 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.graphics.Color;
+import android.media.MediaPlayer;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -23,6 +24,9 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.OutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -35,6 +39,7 @@ public class AiraCallActivity extends Activity {
   private static final int MIC_REQUEST = 913;
   private TextToSpeech tts;
   private SpeechRecognizer recognizer;
+  private MediaPlayer voicePlayer;
   private TextView status;
   private Button accept;
   private final ExecutorService network = Executors.newSingleThreadExecutor();
@@ -78,6 +83,53 @@ public class AiraCallActivity extends Activity {
   }
 
   private void say(String words, boolean listenAfter) {
+    network.execute(() -> {
+      try {
+        File audio = requestElevenLabsVoice(words);
+        runOnUiThread(() -> playElevenLabsVoice(audio, listenAfter, words));
+      } catch (Exception error) {
+        runOnUiThread(() -> speakAndroidFallback(words, listenAfter));
+      }
+    });
+  }
+
+  private File requestElevenLabsVoice(String words) throws Exception {
+    URL url = new URL("https://vibetube-cloud.vercel.app/api/voice");
+    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+    connection.setRequestMethod("POST");
+    connection.setConnectTimeout(12000);
+    connection.setReadTimeout(30000);
+    connection.setRequestProperty("Content-Type", "application/json");
+    connection.setDoOutput(true);
+    JSONObject body = new JSONObject(); body.put("text", words);
+    try (OutputStream out = connection.getOutputStream()) { out.write(body.toString().getBytes("UTF-8")); }
+    if (connection.getResponseCode() != 200) throw new Exception("ElevenLabs " + connection.getResponseCode());
+    File audio = new File(getCacheDir(), "angel-voice-" + System.currentTimeMillis() + ".mp3");
+    try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(audio)) {
+      byte[] buffer = new byte[8192]; int count;
+      while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+    }
+    return audio;
+  }
+
+  private void playElevenLabsVoice(File audio, boolean listenAfter, String fallbackWords) {
+    try {
+      if (voicePlayer != null) { voicePlayer.release(); voicePlayer = null; }
+      voicePlayer = new MediaPlayer();
+      voicePlayer.setDataSource(audio.getAbsolutePath());
+      voicePlayer.setOnPreparedListener(MediaPlayer::start);
+      voicePlayer.setOnCompletionListener(player -> {
+        player.release(); voicePlayer = null; audio.delete();
+        if (listenAfter && accepted) runOnUiThread(this::startListening);
+      });
+      voicePlayer.setOnErrorListener((player, what, extra) -> {
+        player.release(); voicePlayer = null; audio.delete(); speakAndroidFallback(fallbackWords, listenAfter); return true;
+      });
+      voicePlayer.prepareAsync();
+    } catch (Exception error) { audio.delete(); speakAndroidFallback(fallbackWords, listenAfter); }
+  }
+
+  private void speakAndroidFallback(String words, boolean listenAfter) {
     if (tts == null) return;
     tts.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
       @Override public void onStart(String id) {}
@@ -137,6 +189,7 @@ public class AiraCallActivity extends Activity {
   @Override protected void onDestroy() {
     accepted = false;
     if (recognizer != null) { recognizer.destroy(); recognizer = null; }
+    if (voicePlayer != null) { voicePlayer.stop(); voicePlayer.release(); voicePlayer = null; }
     if (tts != null) { tts.stop(); tts.shutdown(); }
     network.shutdownNow();
     super.onDestroy();
