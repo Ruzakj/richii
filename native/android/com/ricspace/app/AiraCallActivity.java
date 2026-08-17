@@ -5,6 +5,8 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
@@ -56,6 +58,8 @@ public class AiraCallActivity extends Activity {
       if (statusCode == TextToSpeech.SUCCESS) tts.setLanguage(new Locale("id", "ID"));
     });
     if (SpeechRecognizer.isRecognitionAvailable(this)) recognizer = SpeechRecognizer.createSpeechRecognizer(this);
+    int autoEndSeconds = getIntent().getIntExtra("auto_end_seconds", 0);
+    if (autoEndSeconds > 0) new Handler(Looper.getMainLooper()).postDelayed(() -> { if (!accepted) finish(); }, autoEndSeconds * 1000L);
   }
 
   private int dp(int value) {
