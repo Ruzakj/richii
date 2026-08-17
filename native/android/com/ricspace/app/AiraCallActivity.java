@@ -10,7 +10,7 @@ import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.graphics.Color;
 import android.view.Gravity;
-import android.view.Window;
+import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -55,15 +55,15 @@ public class AiraCallActivity extends Activity {
     root.setGravity(Gravity.CENTER);
     root.setPadding(42, 42, 42, 42);
     root.setBackgroundColor(Color.rgb(7, 8, 13));
-
-    TextView label = new TextView(this); label.setText("INCOMING CALL"); label.setTextColor(Color.rgb(161, 151, 255)); label.setTextSize(12); label.setLetterSpacing(.16f);
-    label.setGravity(Gravity.CENTER);
+    TextView label = new TextView(this); label.setText("INCOMING CALL"); label.setTextColor(Color.rgb(161, 151, 255)); label.setTextSize(12); label.setLetterSpacing(.16f); label.setGravity(Gravity.CENTER);
     TextView name = new TextView(this); name.setText("Aira"); name.setTextColor(Color.WHITE); name.setTextSize(42); name.setGravity(Gravity.CENTER);
     status = new TextView(this); status.setText("Aira is calling…"); status.setTextColor(Color.rgb(180, 182, 198)); status.setTextSize(16); status.setGravity(Gravity.CENTER);
     LinearLayout buttons = new LinearLayout(this); buttons.setGravity(Gravity.CENTER); buttons.setPadding(0, 46, 0, 0);
     Button decline = new Button(this); decline.setText("Tolak"); decline.setTextColor(Color.WHITE); decline.setBackgroundColor(Color.rgb(82, 43, 58));
     accept = new Button(this); accept.setText("Angkat"); accept.setTextColor(Color.WHITE); accept.setBackgroundColor(Color.rgb(67, 122, 100));
-    buttons.addView(decline, new LinearLayout.LayoutParams(0, 58, 1)); buttons.addView(accept, new LinearLayout.LayoutParams(24, 1)); buttons.addView(accept, new LinearLayout.LayoutParams(0, 58, 1));
+    buttons.addView(decline, new LinearLayout.LayoutParams(0, 58, 1));
+    buttons.addView(new View(this), new LinearLayout.LayoutParams(24, 1));
+    buttons.addView(accept, new LinearLayout.LayoutParams(0, 58, 1));
     root.addView(label); root.addView(name); root.addView(status); root.addView(buttons);
     setContentView(root);
     decline.setOnClickListener(v -> finish());
@@ -77,12 +77,12 @@ public class AiraCallActivity extends Activity {
 
   private void say(String words, boolean listenAfter) {
     if (tts == null) return;
-    tts.speak(words, TextToSpeech.QUEUE_FLUSH, null, listenAfter ? "listen" : "reply");
     tts.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
       @Override public void onStart(String id) {}
       @Override public void onError(String id) {}
       @Override public void onDone(String id) { if ("listen".equals(id) && accepted) runOnUiThread(() -> startListening()); }
     });
+    tts.speak(words, TextToSpeech.QUEUE_FLUSH, null, listenAfter ? "listen" : "reply");
   }
 
   private void startListening() {
@@ -94,7 +94,7 @@ public class AiraCallActivity extends Activity {
     recognizer.setRecognitionListener(new android.speech.RecognitionListener() {
       public void onReadyForSpeech(Bundle b) {} public void onBeginningOfSpeech() {} public void onRmsChanged(float r) {} public void onBufferReceived(byte[] b) {}
       public void onEndOfSpeech() { status.setText("Aira sedang berpikir…"); }
-      public void onError(int error) { if (accepted) { status.setText("Aku belum denger, coba bicara lagi."); } }
+      public void onError(int error) { if (accepted) status.setText("Aku belum denger, coba bicara lagi."); }
       public void onResults(Bundle results) {
         ArrayList<String> texts=results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         if (texts != null && !texts.isEmpty()) askAira(texts.get(0));
@@ -104,7 +104,6 @@ public class AiraCallActivity extends Activity {
     Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
     intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "id-ID");
     intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-    intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
     recognizer.startListening(intent);
   }
 
