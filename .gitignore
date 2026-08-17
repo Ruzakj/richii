@@ -1,0 +1,6 @@
+node_modules/
+android/
+.idea/
+.gradle/
+build/
+*.apk
