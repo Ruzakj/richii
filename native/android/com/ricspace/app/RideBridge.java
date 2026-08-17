@@ -25,7 +25,7 @@ public final class RideBridge {
   }
 
   @JavascriptInterface
-  public void start() {
+  public void start(String rideId) {
     if (activity == null) return;
     if (!hasLocationPermission(activity)) {
       String[] permissions = Build.VERSION.SDK_INT >= 33
@@ -34,12 +34,23 @@ public final class RideBridge {
       ActivityCompat.requestPermissions(activity, permissions, LOCATION_PERMISSION_REQUEST);
       return;
     }
+    RideNativeStore.begin(activity, rideId == null ? "" : rideId);
     RideLocationService.start(activity);
   }
 
   @JavascriptInterface
   public void stop() {
     if (activity != null) RideLocationService.stop(activity);
+  }
+
+  @JavascriptInterface
+  public String getBufferedLocations() {
+    return activity == null ? "[]" : RideNativeStore.points(activity);
+  }
+
+  @JavascriptInterface
+  public void clearBufferedLocations() {
+    if (activity != null) RideNativeStore.clear(activity);
   }
 
   @JavascriptInterface
@@ -55,12 +66,12 @@ public final class RideBridge {
       || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
   }
 
-  static void pushLocation(double latitude, double longitude, float speed, float bearing, float accuracy) {
+  static void pushLocation(double latitude, double longitude, float speed, float bearing, float accuracy, long timestamp) {
     WebView view = webView;
     if (view == null) return;
     String payload = String.format(java.util.Locale.US,
-      "{latitude:%.7f,longitude:%.7f,speed:%.3f,heading:%.2f,accuracy:%.1f}",
-      latitude, longitude, speed, bearing, accuracy);
+      "{latitude:%.7f,longitude:%.7f,speed:%.3f,heading:%.2f,accuracy:%.1f,timestamp:%d}",
+      latitude, longitude, speed, bearing, accuracy, timestamp);
     view.post(() -> view.evaluateJavascript(
       "window.dispatchEvent(new CustomEvent('ric-native-location',{detail:" + payload + "}));", null));
   }
