@@ -5,10 +5,12 @@ import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.provider.Settings;
+import android.provider.MediaStore;
 import android.net.Uri;
 import android.content.SharedPreferences;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ContentValues;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.webkit.JavascriptInterface;
@@ -18,11 +20,15 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import java.util.Calendar;
+import java.io.InputStream;
+import java.io.OutputStream;
+import android.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.json.JSONObject;
 
 public final class AiraBridge {
   static final int NOTIFICATION_PERMISSION_REQUEST = 912;
+  static final int LOCAL_RESTORE_REQUEST = 914;
   private static final String ACTION_MORNING_START = "ric.angel.MORNING_START";
   private static final String ACTION_CALL = "ric.angel.CALL";
   private static final String ACTION_END_CALL = "ric.angel.END_CALL";
@@ -49,7 +55,8 @@ public final class AiraBridge {
         + "function start(){try{window.RicAiraNative&&window.RicAiraNative.startCall&&window.RicAiraNative.startCall()}catch(e){}}"
         + "function bind(){document.querySelectorAll('button.video').forEach(function(b){if(b.dataset.angelCallBound)return;b.dataset.angelCallBound='1';b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();start()},true)})}"
         + "function add(){if(document.getElementById('ric-angel-shortcut'))return;var b=document.createElement('button');b.id='ric-angel-shortcut';b.type='button';b.setAttribute('aria-label','Telepon Angel');b.innerHTML='<span>✦</span> Angel';b.style.cssText='position:fixed;right:16px;bottom:88px;z-index:2147483647;border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:11px 14px;background:linear-gradient(135deg,#7c5cff,#b14cff);box-shadow:0 12px 32px rgba(74,47,180,.38);color:#fff;font:700 14px system-ui,-apple-system,sans-serif;letter-spacing:.01em';b.onclick=start;document.body.appendChild(b)}"
-        + "bind();add();setTimeout(bind,1200)})()",
+        + "function backup(){var box=document.querySelector('.backup-actions');if(!box||document.getElementById('ric-local-backup'))return;var row=document.createElement('div');row.id='ric-local-backup';row.style.cssText='display:flex;gap:8px;margin-top:10px';var save=document.createElement('button'),restore=document.createElement('button');save.type=restore.type='button';save.textContent='Backup lokal';restore.textContent='Pulihkan file';[save,restore].forEach(function(x){x.style.cssText='flex:1;border:0;border-radius:10px;padding:10px;background:#292929;color:#fff;font:600 12px system-ui'});save.onclick=function(){try{var raw=localStorage.getItem('ric-companion-v1')||'';window.RicAiraNative&&window.RicAiraNative.exportLocalBackup&&window.RicAiraNative.exportLocalBackup(btoa(unescape(encodeURIComponent(raw))))}catch(e){}};restore.onclick=function(){try{window.RicAiraNative&&window.RicAiraNative.restoreLocalBackup&&window.RicAiraNative.restoreLocalBackup()}catch(e){}};row.append(save,restore);box.parentNode.appendChild(row);window.addEventListener('aira-local-backup-status',function(e){var s=document.getElementById('backupStatus');if(s)s.textContent=e.detail})}"
+        + "bind();add();backup();setTimeout(function(){bind();backup()},1200)})()",
       null);
     view.postDelayed(addShortcut, 1300);
     view.postDelayed(addShortcut, 3500);
@@ -81,6 +88,49 @@ public final class AiraBridge {
         WebView page = ((MainActivity) activity).getBridge().getWebView();
         page.evaluateJavascript(script, null);
       });
+    } catch (Exception ignored) {}
+  }
+
+  @JavascriptInterface
+  public void exportLocalBackup(String base64Payload) {
+    if (activity == null || base64Payload == null || base64Payload.isEmpty()) return;
+    activity.runOnUiThread(() -> {
+      try {
+        byte[] data = Base64.decode(base64Payload, Base64.DEFAULT);
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Downloads.DISPLAY_NAME, "angel-chat-" + System.currentTimeMillis() + ".json");
+        values.put(MediaStore.Downloads.MIME_TYPE, "application/json");
+        values.put(MediaStore.Downloads.RELATIVE_PATH, "Download/Ric Space");
+        android.net.Uri uri = activity.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        if (uri == null) throw new Exception("Lokasi Download tidak tersedia");
+        try (OutputStream output = activity.getContentResolver().openOutputStream(uri)) { output.write(data); }
+        ((MainActivity) activity).getBridge().getWebView().evaluateJavascript("window.dispatchEvent(new CustomEvent('aira-local-backup-status',{detail:'Backup lokal tersimpan di Download/Ric Space'}))", null);
+      } catch (Exception error) {
+        ((MainActivity) activity).getBridge().getWebView().evaluateJavascript("window.dispatchEvent(new CustomEvent('aira-local-backup-status',{detail:'Backup lokal gagal disimpan'}))", null);
+      }
+    });
+  }
+
+  @JavascriptInterface
+  public void restoreLocalBackup() {
+    if (activity == null) return;
+    activity.runOnUiThread(() -> {
+      Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+      picker.addCategory(Intent.CATEGORY_OPENABLE);
+      picker.setType("application/json");
+      activity.startActivityForResult(picker, LOCAL_RESTORE_REQUEST);
+    });
+  }
+
+  static void importLocalBackup(android.net.Uri uri) {
+    if (activity == null || uri == null) return;
+    try (InputStream input = activity.getContentResolver().openInputStream(uri)) {
+      java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+      byte[] buffer = new byte[8192]; int count;
+      while ((count = input.read(buffer)) != -1) bytes.write(buffer, 0, count);
+      String encoded = Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP);
+      String script = "(function(){try{localStorage.setItem('ric-companion-v1',decodeURIComponent(escape(atob('" + encoded + "'))));location.reload()}catch(e){window.dispatchEvent(new CustomEvent('aira-local-backup-status',{detail:'File backup tidak valid'}))}})()";
+      activity.runOnUiThread(() -> ((MainActivity) activity).getBridge().getWebView().evaluateJavascript(script, null));
     } catch (Exception ignored) {}
   }
 
