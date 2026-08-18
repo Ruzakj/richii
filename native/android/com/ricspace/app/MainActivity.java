@@ -39,6 +39,7 @@ public class MainActivity extends BridgeActivity {
   private static final String LATEST_RELEASE_API = "https://api.github.com/repos/Ruzakj/richii/releases/latest";
   private static final String LATEST_APK_URL = "https://github.com/Ruzakj/richii/releases/latest/download/Ric-Space.apk";
   private static final String APK_MIME = "application/vnd.android.package-archive";
+  private static final int VERSION_BASE = 100000;
 
   private final Handler pluTimerFixHandler = new Handler(Looper.getMainLooper());
   private int pluTimerFixAttempts = 0;
@@ -50,8 +51,6 @@ public class MainActivity extends BridgeActivity {
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     WebView webView = getBridge().getWebView();
-    // The app is a remote VibeTube shell. Always bypass the WebView HTTP cache so
-    // a new Vercel revision (including Angel UI) is visible without reinstalling.
     webView.clearCache(true);
     webView.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
     RideBridge.attach(this, webView);
@@ -82,7 +81,6 @@ public class MainActivity extends BridgeActivity {
     );
   }
 
-  /** Check the public GitHub Release channel without blocking startup. */
   private void checkForAppUpdate() {
     if (updateCheckRunning) return;
     updateCheckRunning = true;
@@ -100,18 +98,15 @@ public class MainActivity extends BridgeActivity {
             String line;
             while ((line = reader.readLine()) != null) body.append(line);
           }
-          Matcher tag = Pattern.compile("\\\"tag_name\\\"\\s*:\\s*\\\"v?([0-9]+(?:\\.[0-9]+){0,2})\\\"").matcher(body.toString());
-          if (tag.find()) remoteVersion = versionCodeFromTag(tag.group(1));
+          Matcher tag = Pattern.compile("\\\"tag_name\\\"\\s*:\\s*\\\"v?1\\.0\\.([0-9]+)\\\"").matcher(body.toString());
+          if (tag.find()) remoteVersion = VERSION_BASE + Integer.parseInt(tag.group(1));
         }
         connection.disconnect();
-      } catch (Exception ignored) {
-        // Offline or GitHub unavailable: silently keep the installed version.
-      }
+      } catch (Exception ignored) {}
 
       final int availableVersion = remoteVersion;
       updateCheckRunning = false;
       if (availableVersion <= 0 || availableVersion <= getInstalledVersionCode()) return;
-
       runOnUiThread(() -> showUpdateDialog(availableVersion));
     }).start();
   }
@@ -123,18 +118,6 @@ public class MainActivity extends BridgeActivity {
       return info.versionCode;
     } catch (Exception e) {
       return 1;
-    }
-  }
-
-  private static int versionCodeFromTag(String version) {
-    try {
-      String[] parts = version.split("\\.");
-      int major = Integer.parseInt(parts[0]);
-      int minor = parts.length > 1 ? Integer.parseInt(parts[1]) : 0;
-      int patch = parts.length > 2 ? Integer.parseInt(parts[2]) : 0;
-      return major * 10000 + minor * 100 + patch;
-    } catch (Exception e) {
-      return -1;
     }
   }
 
@@ -220,8 +203,6 @@ public class MainActivity extends BridgeActivity {
     super.onDestroy();
   }
 
-  /** Remove the old native Angel shortcut. The single production floating button
-   * is owned by angel-shortcut.js so PWA and APK have identical UI/behavior. */
   private void scheduleAngelUiCleanup() {
     angelUiHandler.postDelayed(() -> {
       WebView webView = getBridge().getWebView();
