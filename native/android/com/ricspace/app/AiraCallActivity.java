@@ -52,7 +52,6 @@ public class AiraCallActivity extends Activity {
   private boolean manualCall = false;
   private boolean callLogged = false;
   private long connectedAt = 0L;
-  private boolean manualCall = false;
 
   @Override public void onCreate(Bundle state) {
     super.onCreate(state);
