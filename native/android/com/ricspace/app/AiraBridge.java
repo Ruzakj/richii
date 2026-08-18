@@ -66,6 +66,23 @@ public final class AiraBridge {
     } catch (Exception ignored) {}
   }
 
+  static void recordCall(String direction, String outcome, int durationSeconds, String detail) {
+    if (activity == null) return;
+    try {
+      JSONObject payload = new JSONObject();
+      payload.put("direction", direction);
+      payload.put("outcome", outcome);
+      payload.put("duration", durationSeconds);
+      payload.put("detail", detail);
+      payload.put("at", System.currentTimeMillis());
+      String script = "window.RicAiraChat&&window.RicAiraChat.recordCall(" + JSONObject.quote(payload.toString()) + ")";
+      activity.runOnUiThread(() -> {
+        WebView page = ((MainActivity) activity).getBridge().getWebView();
+        page.evaluateJavascript(script, null);
+      });
+    } catch (Exception ignored) {}
+  }
+
   @JavascriptInterface
   public void startCall() {
     if (activity == null) return;
@@ -124,21 +141,21 @@ public final class AiraBridge {
   static void scheduleTodayTest(Context context) {
     Calendar now = Calendar.getInstance();
     Calendar target = Calendar.getInstance();
-    target.set(2026, Calendar.AUGUST, 18, 3, 50, 0);
+    target.set(2026, Calendar.AUGUST, 18, 13, 10, 0);
     target.set(Calendar.MILLISECOND, 0);
     SharedPreferences prefs = context.getSharedPreferences("ric_angel_tests", Context.MODE_PRIVATE);
-    String testKey = "morning_call_20260818";
+    String testKey = "angel_call_test_20260818_1310";
     if (prefs.getBoolean(testKey, false)) return;
     long when = target.getTimeInMillis();
-    // If the APK is first opened after 03.50 today, give Ric a reliable late test
-    // instead of silently dropping it. The fallback expires at 04.20 WIB.
+    // If the APK is first opened after 13.10 today, give Ric a reliable late test
+    // instead of silently dropping it. The fallback expires at 13.30 WIB.
     Calendar fallbackLimit = Calendar.getInstance();
-    fallbackLimit.set(2026, Calendar.AUGUST, 18, 4, 20, 0);
+    fallbackLimit.set(2026, Calendar.AUGUST, 18, 13, 30, 0);
     if (when <= now.getTimeInMillis()) {
       if (now.getTimeInMillis() > fallbackLimit.getTimeInMillis()) return;
       when = now.getTimeInMillis() + 90_000L;
     }
-    scheduleAlarm(context, ACTION_CALL, when, 5350, 4499, 25);
+    scheduleAlarm(context, ACTION_CALL, when, 5350, 4499, 40);
     prefs.edit().putBoolean(testKey, true).apply();
   }
 
