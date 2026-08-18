@@ -1,9 +1,12 @@
 package com.ricspace.app;
 
+import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.view.Window;
@@ -28,6 +31,7 @@ public class MainActivity extends BridgeActivity {
     webView.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
     RideBridge.attach(this, webView);
     AiraBridge.attach(this, webView);
+    webView.addJavascriptInterface(new SpeedometerFullscreenBridge(this), "RicAndroid");
     enableImmersiveMode();
     openCompanionIfRequested(getIntent());
     schedulePluTimerWebViewFix();
@@ -140,6 +144,31 @@ public class MainActivity extends BridgeActivity {
           | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
           | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
       );
+    }
+  }
+
+  /** Native fallback for Speedometer fullscreen because Android WebView may reject
+   * ScreenOrientation.lock() even after requestFullscreen(). This changes the
+   * actual Activity orientation and keeps the app immersive while the speedometer
+   * is in fullscreen. */
+  private static final class SpeedometerFullscreenBridge {
+    private final Activity activity;
+
+    SpeedometerFullscreenBridge(Activity activity) {
+      this.activity = activity;
+    }
+
+    @JavascriptInterface
+    public void setSpeedometerLandscape(final boolean landscape) {
+      activity.runOnUiThread(() -> {
+        activity.setRequestedOrientation(
+          landscape ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                    : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        );
+        if (activity instanceof MainActivity) {
+          ((MainActivity) activity).enableImmersiveMode();
+        }
+      });
     }
   }
 
