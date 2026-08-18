@@ -32,6 +32,7 @@ public final class AiraBridge {
   static void attach(Activity host, WebView view) {
     activity = host;
     view.addJavascriptInterface(new AiraBridge(), "RicAiraNative");
+    installAngelShortcut(view);
     if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(host, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
       ActivityCompat.requestPermissions(host, new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
     } else {
@@ -39,6 +40,16 @@ public final class AiraBridge {
       scheduleDailyRoutine(host);
       scheduleTodayTest(host);
     }
+  }
+
+  private static void installAngelShortcut(WebView view) {
+    view.postDelayed(() -> view.evaluateJavascript(
+      "(function(){"
+        + "function start(){try{window.RicAiraNative&&window.RicAiraNative.startCall&&window.RicAiraNative.startCall()}catch(e){}}"
+        + "function bind(){document.querySelectorAll('button.video').forEach(function(b){if(b.dataset.angelCallBound)return;b.dataset.angelCallBound='1';b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();start()},true)})}"
+        + "function add(){if(document.getElementById('ric-angel-shortcut'))return;var b=document.createElement('button');b.id='ric-angel-shortcut';b.type='button';b.setAttribute('aria-label','Telepon Angel');b.innerHTML='<span>✦</span> Angel';b.style.cssText='position:fixed;right:16px;bottom:88px;z-index:2147483647;border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:11px 14px;background:linear-gradient(135deg,#7c5cff,#b14cff);box-shadow:0 12px 32px rgba(74,47,180,.38);color:#fff;font:700 14px system-ui,-apple-system,sans-serif;letter-spacing:.01em';b.onclick=start;document.body.appendChild(b)}"
+        + "bind();add();setTimeout(bind,1200)})()",
+      null), 1800);
   }
 
   private static void requestExactAlarmAccess(Activity host) {
@@ -50,6 +61,16 @@ public final class AiraBridge {
         Uri.parse("package:" + host.getPackageName()));
       host.startActivity(settings);
     } catch (Exception ignored) {}
+  }
+
+  @JavascriptInterface
+  public void startCall() {
+    if (activity == null) return;
+    activity.runOnUiThread(() -> {
+      Intent intent = new Intent(activity, AiraCallActivity.class);
+      intent.putExtra("manual_call", true);
+      activity.startActivity(intent);
+    });
   }
 
   @JavascriptInterface
