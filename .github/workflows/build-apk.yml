@@ -1,10 +1,13 @@
 name: Build Ric Space APK
+
 on:
   push:
     branches: [main, master]
   workflow_dispatch:
+
 permissions:
-  contents: read
+  contents: write
+
 jobs:
   build-android:
     name: Build Android APK
@@ -12,15 +15,23 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: 22 }
+        with:
+          node-version: 22
+
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: "21" }
+        with:
+          distribution: temurin
+          java-version: "21"
+
       - name: Install Capacitor
         run: npm install
+
       - name: Create Android project
         run: npx cap add android
-      - name: Add native Ride Tracking and Aira
+
+      - name: Add native Ride Tracking, Aira, fullscreen and updater
         run: |
           APP_DIR=android/app/src/main/java/com/ricspace/app
           mkdir -p "$APP_DIR"
@@ -32,23 +43,88 @@ jobs:
           cp native/android/com/ricspace/app/AiraCheckinWorker.java "$APP_DIR/AiraCheckinWorker.java"
           cp native/android/com/ricspace/app/AiraCallActivity.java "$APP_DIR/AiraCallActivity.java"
           cp native/android/com/ricspace/app/AiraCallReceiver.java "$APP_DIR/AiraCallReceiver.java"
+
           perl -0pi -e 's/dependencies \{/dependencies {\n    implementation "com.google.android.gms:play-services-location:21.3.0"\n    implementation "androidx.work:work-runtime:2.9.0"/' android/app/build.gradle
-          perl -0pi -e 's#<application#<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n\n    <application#' android/app/src/main/AndroidManifest.xml
+
+          # Every build gets a monotonically increasing versionCode so Android can
+          # install it as an update instead of treating it as a separate app.
+          VERSION_CODE=$((100000 + ${{ github.run_number }}))
+          VERSION_NAME="1.0.${{ github.run_number }}"
+          perl -0pi -e "s/defaultConfig \{/defaultConfig {\n        versionCode ${VERSION_CODE}\n        versionName '${VERSION_NAME}'/" android/app/build.gradle
+
+          perl -0pi -e 's#<application#<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n\n    <application#' android/app/src/main/AndroidManifest.xml
+
           perl -0pi -e 's#<activity#<service android:name=".RideLocationService" android:exported="false" android:foregroundServiceType="location" />\n        <receiver android:name=".AiraCallReceiver" android:exported="false" />\n        <activity android:name=".AiraCallActivity" android:exported="false" android:showWhenLocked="true" android:turnScreenOn="true" />\n        <activity#' android/app/src/main/AndroidManifest.xml
+
+      - name: Configure stable release signing when secrets are available
+        if: ${{ secrets.KEYSTORE_B64 != '' && secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 --decode > android/ricspace-release.keystore
+          cat >> android/app/build.gradle <<'EOF'
+
+          android {
+            signingConfigs {
+              release {
+                storeFile file("../ricspace-release.keystore")
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS")
+                keyPassword System.getenv("KEY_PASSWORD")
+              }
+            }
+            buildTypes {
+              release {
+                signingConfig signingConfigs.release
+              }
+            }
+          }
+          EOF
+
       - name: Sync Ric Space
         run: npx cap sync android
-      - name: Build debug APK
+
+      - name: Build signed release APK
+        if: ${{ secrets.KEYSTORE_B64 != '' && secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/Ric-Space.apk
+
+      - name: Build debug APK (bootstrap only)
+        if: ${{ !(secrets.KEYSTORE_B64 != '' && secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '') }}
         run: |
           chmod +x android/gradlew
           cd android
           ./gradlew assembleDebug
-      - name: Upload APK
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Ric-Space.apk
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Ric-Space-debug-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/**/Ric-Space.apk
           if-no-files-found: error
           retention-days: 14
 
-          # Web UI is served from production VibeTube; rebuild the APK shell on UI revisions too.
-          # This keeps the distributable APK aligned with the current remote UI/cache strategy.
+      - name: Publish signed APK as latest GitHub Release
+        if: ${{ secrets.KEYSTORE_B64 != '' && secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v1.0.${{ github.run_number }}
+        run: |
+          gh release create "$TAG" android/app/build/outputs/apk/release/Ric-Space.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Ric Space $TAG" \
+            --generate-notes
+
+      # Web UI is served from production VibeTube; native releases are versioned
+      # independently so future APKs can update over the existing installation.
