@@ -48,12 +48,15 @@ public class AiraCallActivity extends Activity {
   private LinearLayout callActions;
   private final ExecutorService network = Executors.newSingleThreadExecutor();
   private boolean accepted = false;
+  private boolean manualCall = false;
 
   @Override public void onCreate(Bundle state) {
     super.onCreate(state);
     getWindow().setStatusBarColor(Color.BLACK);
     getWindow().setNavigationBarColor(Color.BLACK);
+    manualCall = getIntent().getBooleanExtra("manual_call", false);
     buildUi();
+    if (manualCall) new Handler(Looper.getMainLooper()).postDelayed(this::acceptCall, 280);
     tts = new TextToSpeech(this, statusCode -> {
       if (statusCode == TextToSpeech.SUCCESS) tts.setLanguage(new Locale("id", "ID"));
     });
@@ -92,7 +95,7 @@ public class AiraCallActivity extends Activity {
     root.setBackgroundColor(Color.BLACK);
 
     TextView label = new TextView(this);
-    label.setText("PANGGILAN MASUK");
+    label.setText(manualCall ? "PANGGILAN ANGEL" : "PANGGILAN MASUK");
     label.setTextColor(Color.rgb(177, 151, 255));
     label.setTextSize(12);
     label.setLetterSpacing(.14f);
@@ -123,7 +126,7 @@ public class AiraCallActivity extends Activity {
     root.addView(name, new LinearLayout.LayoutParams(-1, -2));
 
     status = new TextView(this);
-    status.setText("Memanggil…");
+    status.setText(manualCall ? "Menghubungkan…" : "Memanggil…");
     status.setTextColor(Color.rgb(168, 168, 177));
     status.setTextSize(16);
     status.setGravity(Gravity.CENTER);
