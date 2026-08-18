@@ -46,8 +46,12 @@ public class AiraCallActivity extends Activity {
   private TextView status;
   private Button accept;
   private LinearLayout callActions;
+  private Button endCall;
   private final ExecutorService network = Executors.newSingleThreadExecutor();
   private boolean accepted = false;
+  private boolean manualCall = false;
+  private boolean callLogged = false;
+  private long connectedAt = 0L;
   private boolean manualCall = false;
 
   @Override public void onCreate(Bundle state) {
@@ -62,7 +66,7 @@ public class AiraCallActivity extends Activity {
     });
     if (SpeechRecognizer.isRecognitionAvailable(this)) recognizer = SpeechRecognizer.createSpeechRecognizer(this);
     int autoEndSeconds = getIntent().getIntExtra("auto_end_seconds", 0);
-    if (autoEndSeconds > 0) new Handler(Looper.getMainLooper()).postDelayed(() -> { if (!accepted) finish(); }, autoEndSeconds * 1000L);
+    if (autoEndSeconds > 0) new Handler(Looper.getMainLooper()).postDelayed(() -> { if (!accepted) closeCall("missed"); }, autoEndSeconds * 1000L);
   }
 
   private int dp(int value) {
@@ -156,15 +160,66 @@ public class AiraCallActivity extends Activity {
     callActions.addView(accept, new LinearLayout.LayoutParams(dp(88), dp(88)));
     root.addView(callActions, new LinearLayout.LayoutParams(-1, -2));
 
+    endCall = new Button(this);
+    endCall.setText("Tutup panggilan");
+    endCall.setTextSize(15);
+    endCall.setAllCaps(false);
+    endCall.setTextColor(Color.WHITE);
+    endCall.setBackground(shape(Color.rgb(202, 57, 83), 28));
+    endCall.setVisibility(View.GONE);
+    LinearLayout.LayoutParams endParams = new LinearLayout.LayoutParams(-1, dp(56));
+    endParams.setMargins(0, dp(24), 0, 0);
+    root.addView(endCall, endParams);
+
     setContentView(root);
-    decline.setOnClickListener(v -> finish());
+    decline.setOnClickListener(v -> closeCall("declined"));
     accept.setOnClickListener(v -> acceptCall());
+    endCall.setOnClickListener(v -> closeCall("ended"));
   }
 
   private void acceptCall() {
-    accepted = true; accept.setEnabled(false); if (callActions != null) callActions.setVisibility(View.INVISIBLE); status.setText("Terhubung · Angel");
-    say("Halo Ric, akhirnya kamu angkat. Lagi ngapain?", true);
+    if (accepted) return;
+    accepted = true;
+    connectedAt = System.currentTimeMillis();
+    accept.setEnabled(false);
+    if (callActions != null) callActions.setVisibility(View.GONE);
+    if (endCall != null) endCall.setVisibility(View.VISIBLE);
+    status.setText("Terhubung · Angel");
+    say(openingGreeting(), true);
   }
+
+  private String openingGreeting() {
+    String[] outgoing = {
+      "Haiii sayang! Akhirnya nelpon juga.",
+      "Halo halo, kamu kangen aku ya? Seneng deh kamu yang telepon.",
+      "Hai sayang, aku langsung angkat dong. Cerita sini.",
+      "Wah, telepon dari kamu. Bikin aku senyum sendiri."
+    };
+    String[] incoming = {
+      "Akhirnya diangkat juga! Dari tadi aku nungguin.",
+      "Lama banget ngangkatnya... tapi yaudah, sekarang aku lega.",
+      "Huft, akhirnya kamu angkat juga. Aku tadi sempat khawatir.",
+      "Haiii! Kamu angkat. Aku seneng banget."
+    };
+    String[] source = manualCall ? outgoing : incoming;
+    return source[(int) (Math.random() * source.length)];
+  }
+
+  private void closeCall(String outcome) {
+    if (!callLogged) {
+      callLogged = true;
+      int duration = connectedAt > 0 ? (int) ((System.currentTimeMillis() - connectedAt) / 1000L) : 0;
+      String direction = manualCall ? "outgoing" : "incoming";
+      String detail = manualCall ? "Panggilan keluar ke Angel" : "Panggilan masuk dari Angel";
+      AiraBridge.recordCall(direction, outcome, duration, detail);
+    }
+    accepted = false;
+    if (voicePlayer != null) { voicePlayer.stop(); voicePlayer.release(); voicePlayer = null; }
+    if (tts != null) tts.stop();
+    finish();
+  }
+
+  @Override public void onBackPressed() { closeCall(accepted ? "ended" : "declined"); }
 
   private void say(String words, boolean listenAfter) {
     network.execute(() -> {
