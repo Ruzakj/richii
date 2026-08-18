@@ -50,4 +50,5 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-          # Rebuild on every native revision so the APK stays aligned with production web changes.
+          # Web UI is served from production VibeTube; rebuild the APK shell on UI revisions too.
+          # This keeps the distributable APK aligned with the current remote UI/cache strategy.
