@@ -43,13 +43,16 @@ public final class AiraBridge {
   }
 
   private static void installAngelShortcut(WebView view) {
-    view.postDelayed(() -> view.evaluateJavascript(
+    Runnable addShortcut = () -> view.evaluateJavascript(
       "(function(){"
         + "function start(){try{window.RicAiraNative&&window.RicAiraNative.startCall&&window.RicAiraNative.startCall()}catch(e){}}"
         + "function bind(){document.querySelectorAll('button.video').forEach(function(b){if(b.dataset.angelCallBound)return;b.dataset.angelCallBound='1';b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();start()},true)})}"
         + "function add(){if(document.getElementById('ric-angel-shortcut'))return;var b=document.createElement('button');b.id='ric-angel-shortcut';b.type='button';b.setAttribute('aria-label','Telepon Angel');b.innerHTML='<span>✦</span> Angel';b.style.cssText='position:fixed;right:16px;bottom:88px;z-index:2147483647;border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:11px 14px;background:linear-gradient(135deg,#7c5cff,#b14cff);box-shadow:0 12px 32px rgba(74,47,180,.38);color:#fff;font:700 14px system-ui,-apple-system,sans-serif;letter-spacing:.01em';b.onclick=start;document.body.appendChild(b)}"
         + "bind();add();setTimeout(bind,1200)})()",
-      null), 1800);
+      null);
+    view.postDelayed(addShortcut, 1300);
+    view.postDelayed(addShortcut, 3500);
+    view.postDelayed(addShortcut, 7500);
   }
 
   private static void requestExactAlarmAccess(Activity host) {
