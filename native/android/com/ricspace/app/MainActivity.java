@@ -121,6 +121,7 @@ public class MainActivity extends BridgeActivity {
     }
   }
 
+  /** Public entry point for the in-app Settings/About update menu. */
   private void showUpdateDialog(int availableVersion) {
     new AlertDialog.Builder(this)
       .setTitle("Update Ric Space tersedia")
@@ -128,6 +129,12 @@ public class MainActivity extends BridgeActivity {
       .setNegativeButton("Nanti", null)
       .setPositiveButton("Update sekarang", (dialog, which) -> downloadAndInstallUpdate())
       .show();
+  }
+
+  /** Manual update check exposed to the WebView Settings UI. */
+  private void manualUpdateCheck() {
+    Toast.makeText(this, "Memeriksa update…", Toast.LENGTH_SHORT).show();
+    checkForAppUpdate();
   }
 
   private void downloadAndInstallUpdate() {
@@ -147,15 +154,12 @@ public class MainActivity extends BridgeActivity {
       request.setDescription("Mengunduh versi terbaru Ric Space");
       request.setMimeType(APK_MIME);
       request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-      request.setDestinationInExternalPublicDir(
-        Environment.DIRECTORY_DOWNLOADS,
-        "Ric-Space-update-" + System.currentTimeMillis() + ".apk"
-      );
+      request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,
+        "Ric-Space-update-" + System.currentTimeMillis() + ".apk");
 
       final long downloadId = manager.enqueue(request);
       apkDownloadReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
+        @Override public void onReceive(Context context, Intent intent) {
           if (!DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction())) return;
           long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
           if (id != downloadId) return;
@@ -163,17 +167,12 @@ public class MainActivity extends BridgeActivity {
             Uri apkUri = manager.getUriForDownloadedFile(downloadId);
             if (apkUri != null) installDownloadedApk(apkUri);
             else Toast.makeText(MainActivity.this, "Download update gagal.", Toast.LENGTH_LONG).show();
-          } finally {
-            unregisterApkReceiver();
-          }
+          } finally { unregisterApkReceiver(); }
         }
       };
       IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        registerReceiver(apkDownloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-      } else {
-        registerReceiver(apkDownloadReceiver, filter);
-      }
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) registerReceiver(apkDownloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+      else registerReceiver(apkDownloadReceiver, filter);
       Toast.makeText(this, "Update sedang diunduh ke Download.", Toast.LENGTH_LONG).show();
     } catch (Exception e) {
       Toast.makeText(this, "Gagal memulai update: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -197,8 +196,7 @@ public class MainActivity extends BridgeActivity {
     apkDownloadReceiver = null;
   }
 
-  @Override
-  protected void onDestroy() {
+  @Override protected void onDestroy() {
     unregisterApkReceiver();
     super.onDestroy();
   }
@@ -207,10 +205,7 @@ public class MainActivity extends BridgeActivity {
     angelUiHandler.postDelayed(() -> {
       WebView webView = getBridge().getWebView();
       if (webView == null) return;
-      webView.evaluateJavascript(
-        "(function(){var e=document.getElementById('ric-angel-shortcut');if(e)e.remove();})()",
-        null
-      );
+      webView.evaluateJavascript("(function(){var e=document.getElementById('ric-angel-shortcut');if(e)e.remove();})()", null);
       angelUiHandler.postDelayed(this::scheduleAngelUiCleanup, 1000);
     }, 1200);
   }
@@ -221,23 +216,18 @@ public class MainActivity extends BridgeActivity {
   }
 
   private final Runnable pluTimerFixRunnable = new Runnable() {
-    @Override
-    public void run() {
+    @Override public void run() {
       if (getBridge() == null || getBridge().getWebView() == null) return;
       String url = getBridge().getWebView().getUrl();
       if (url != null && url.contains("/apps/plu-timer/")) {
-        getBridge().getWebView().evaluateJavascript(
-          "javascript:(function(){try{if(!window.__ricPluTimerNotificationFix){window.__ricPluTimerNotificationFix=true;if(!('Notification' in window)){window.Notification=function(){return null};window.Notification.permission='denied';window.Notification.requestPermission=function(){return Promise.resolve('denied')}}else{var nativePermission=window.Notification.requestPermission;window.Notification.requestPermission=function(){try{var p=nativePermission&&nativePermission.call(window.Notification);if(p&&typeof p.catch==='function'){p.catch(function(){})}}catch(e){}return Promise.resolve(window.Notification.permission==='granted'?'granted':'denied')}}}}catch(e){}})()",
-          null
-        );
+        getBridge().getWebView().evaluateJavascript("javascript:(function(){try{if(!window.__ricPluTimerNotificationFix){window.__ricPluTimerNotificationFix=true;if(!('Notification' in window)){window.Notification=function(){return null};window.Notification.permission='denied';window.Notification.requestPermission=function(){return Promise.resolve('denied')}}else{var nativePermission=window.Notification.requestPermission;window.Notification.requestPermission=function(){try{var p=nativePermission&&nativePermission.call(window.Notification);if(p&&typeof p.catch==='function'){p.catch(function(){})}}catch(e){}return Promise.resolve(window.Notification.permission==='granted'?'granted':'denied')}}}}catch(e){}})()", null);
         return;
       }
       if (++pluTimerFixAttempts < 30) pluTimerFixHandler.postDelayed(this, 500);
     }
   };
 
-  @Override
-  public void onWindowFocusChanged(boolean hasFocus) {
+  @Override public void onWindowFocusChanged(boolean hasFocus) {
     super.onWindowFocusChanged(hasFocus);
     if (hasFocus) enableImmersiveMode();
   }
@@ -253,22 +243,14 @@ public class MainActivity extends BridgeActivity {
       }
     } else {
       window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
-      window.getDecorView().setSystemUiVisibility(
-        android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-          | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
-          | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-          | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-          | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-          | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-      );
+      window.getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
     }
   }
 
   private static final class SpeedometerFullscreenBridge {
     private final Activity activity;
     SpeedometerFullscreenBridge(Activity activity) { this.activity = activity; }
-    @JavascriptInterface
-    public void setSpeedometerLandscape(final boolean landscape) {
+    @JavascriptInterface public void setSpeedometerLandscape(final boolean landscape) {
       activity.runOnUiThread(() -> {
         activity.setRequestedOrientation(landscape ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         if (activity instanceof MainActivity) ((MainActivity) activity).enableImmersiveMode();
@@ -276,16 +258,20 @@ public class MainActivity extends BridgeActivity {
     }
   }
 
-  @Override
-  protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-    super.onActivityResult(requestCode, resultCode, data);
-    if (requestCode == AiraBridge.LOCAL_RESTORE_REQUEST && resultCode == RESULT_OK && data != null) {
-      AiraBridge.importLocalBackup(data.getData());
-    }
+  /** Native bridge for the in-app updater. The web settings menu can call this
+   * without needing to know anything about GitHub, URLs, or Android storage. */
+  private final class UpdateBridge {
+    @JavascriptInterface public void check() { runOnUiThread(MainActivity.this::manualUpdateCheck); }
+    @JavascriptInterface public void updateNow() { runOnUiThread(MainActivity.this::downloadAndInstallUpdate); }
+    @JavascriptInterface public String version() { return String.valueOf(getInstalledVersionCode()); }
   }
 
-  @Override
-  public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+  @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    super.onActivityResult(requestCode, resultCode, data);
+    if (requestCode == AiraBridge.LOCAL_RESTORE_REQUEST && resultCode == RESULT_OK && data != null) AiraBridge.importLocalBackup(data.getData());
+  }
+
+  @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
     super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     if (requestCode == RideBridge.LOCATION_PERMISSION_REQUEST && RideBridge.hasLocationPermission(this)) RideLocationService.start(this);
     if (requestCode == AiraBridge.NOTIFICATION_PERMISSION_REQUEST) {
