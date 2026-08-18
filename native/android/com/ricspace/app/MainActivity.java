@@ -25,9 +25,7 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.widget.Toast;
-
 import com.getcapacitor.BridgeActivity;
-
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -40,15 +38,13 @@ public class MainActivity extends BridgeActivity {
   private static final String LATEST_APK_URL = "https://github.com/Ruzakj/richii/releases/latest/download/Ric-Space.apk";
   private static final String APK_MIME = "application/vnd.android.package-archive";
   private static final int VERSION_BASE = 100000;
-
   private final Handler pluTimerFixHandler = new Handler(Looper.getMainLooper());
   private int pluTimerFixAttempts = 0;
   private final Handler angelUiHandler = new Handler(Looper.getMainLooper());
   private BroadcastReceiver apkDownloadReceiver;
   private boolean updateCheckRunning = false;
 
-  @Override
-  public void onCreate(Bundle savedInstanceState) {
+  @Override public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     WebView webView = getBridge().getWebView();
     webView.clearCache(true);
@@ -56,6 +52,7 @@ public class MainActivity extends BridgeActivity {
     RideBridge.attach(this, webView);
     AiraBridge.attach(this, webView);
     webView.addJavascriptInterface(new SpeedometerFullscreenBridge(this), "RicAndroid");
+    webView.addJavascriptInterface(new UpdateBridge(), "RicUpdater");
     enableImmersiveMode();
     openCompanionIfRequested(getIntent());
     schedulePluTimerWebViewFix();
@@ -64,21 +61,13 @@ public class MainActivity extends BridgeActivity {
     checkForAppUpdate();
   }
 
-  @Override
-  public void onNewIntent(Intent intent) {
-    super.onNewIntent(intent);
-    setIntent(intent);
-    openCompanionIfRequested(intent);
-    schedulePluTimerWebViewFix();
-    scheduleAngelUiCleanup();
+  @Override public void onNewIntent(Intent intent) {
+    super.onNewIntent(intent); setIntent(intent); openCompanionIfRequested(intent); schedulePluTimerWebViewFix(); scheduleAngelUiCleanup();
   }
 
   private void openCompanionIfRequested(Intent intent) {
     if (intent == null || !intent.getBooleanExtra("open_companion", false)) return;
-    getBridge().getWebView().postDelayed(
-      () -> getBridge().getWebView().loadUrl("https://vibetube-cloud.vercel.app/ric-companion.html?proactive=1&fresh=1"),
-      350
-    );
+    getBridge().getWebView().postDelayed(() -> getBridge().getWebView().loadUrl("https://vibetube-cloud.vercel.app/ric-companion.html?proactive=1&fresh=1"), 350);
   }
 
   private void checkForAppUpdate() {
@@ -87,196 +76,66 @@ public class MainActivity extends BridgeActivity {
     new Thread(() -> {
       int remoteVersion = -1;
       try {
-        HttpURLConnection connection = (HttpURLConnection) new URL(LATEST_RELEASE_API).openConnection();
-        connection.setRequestMethod("GET");
-        connection.setConnectTimeout(5000);
-        connection.setReadTimeout(5000);
-        connection.setRequestProperty("Accept", "application/vnd.github+json");
-        if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
-          StringBuilder body = new StringBuilder();
-          try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) body.append(line);
-          }
-          Matcher tag = Pattern.compile("\\\"tag_name\\\"\\s*:\\s*\\\"v?1\\.0\\.([0-9]+)\\\"").matcher(body.toString());
-          if (tag.find()) remoteVersion = VERSION_BASE + Integer.parseInt(tag.group(1));
+        HttpURLConnection c = (HttpURLConnection)new URL(LATEST_RELEASE_API).openConnection();
+        c.setRequestMethod("GET"); c.setConnectTimeout(5000); c.setReadTimeout(5000); c.setRequestProperty("Accept", "application/vnd.github+json");
+        if (c.getResponseCode() == HttpURLConnection.HTTP_OK) {
+          StringBuilder b = new StringBuilder(); String line;
+          try (BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream()))) { while ((line=r.readLine())!=null) b.append(line); }
+          Matcher m=Pattern.compile("\\\"tag_name\\\"\\s*:\\s*\\\"v?1\\.0\\.([0-9]+)\\\"").matcher(b.toString());
+          if(m.find()) remoteVersion=VERSION_BASE+Integer.parseInt(m.group(1));
         }
-        connection.disconnect();
-      } catch (Exception ignored) {}
-
-      final int availableVersion = remoteVersion;
-      updateCheckRunning = false;
-      if (availableVersion <= 0 || availableVersion <= getInstalledVersionCode()) return;
-      runOnUiThread(() -> showUpdateDialog(availableVersion));
+        c.disconnect();
+      } catch(Exception ignored) {}
+      final int v=remoteVersion; updateCheckRunning=false;
+      if(v>0 && v>getInstalledVersionCode()) runOnUiThread(() -> showUpdateDialog(v));
     }).start();
   }
 
   private int getInstalledVersionCode() {
-    try {
-      PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) return (int) info.getLongVersionCode();
-      return info.versionCode;
-    } catch (Exception e) {
-      return 1;
-    }
+    try { PackageInfo p=getPackageManager().getPackageInfo(getPackageName(),0); return Build.VERSION.SDK_INT>=Build.VERSION_CODES.P?(int)p.getLongVersionCode():p.versionCode; }
+    catch(Exception e){return 1;}
   }
 
-  /** Public entry point for the in-app Settings/About update menu. */
   private void showUpdateDialog(int availableVersion) {
-    new AlertDialog.Builder(this)
-      .setTitle("Update Ric Space tersedia")
-      .setMessage("Versi baru tersedia. Data Angel, setting, dan data aplikasi tetap dipertahankan saat update.")
-      .setNegativeButton("Nanti", null)
-      .setPositiveButton("Update sekarang", (dialog, which) -> downloadAndInstallUpdate())
-      .show();
+    new AlertDialog.Builder(this).setTitle("Update Ric Space tersedia")
+      .setMessage("Versi baru tersedia. Data Angel, setting, dan data aplikasi tetap dipertahankan.")
+      .setNegativeButton("Nanti",null).setPositiveButton("Update sekarang",(d,w)->downloadAndInstallUpdate()).show();
   }
 
-  /** Manual update check exposed to the WebView Settings UI. */
-  private void manualUpdateCheck() {
-    Toast.makeText(this, "Memeriksa update…", Toast.LENGTH_SHORT).show();
-    checkForAppUpdate();
-  }
+  private void manualUpdateCheck() { Toast.makeText(this,"Memeriksa update…",Toast.LENGTH_SHORT).show(); checkForAppUpdate(); }
 
   private void downloadAndInstallUpdate() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !getPackageManager().canRequestPackageInstalls()) {
-      Toast.makeText(this, "Izinkan Ric Space memasang update dari sumber ini.", Toast.LENGTH_LONG).show();
-      try {
-        startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-          Uri.parse("package:" + getPackageName())));
-      } catch (ActivityNotFoundException ignored) {}
+    if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.O && !getPackageManager().canRequestPackageInstalls()) {
+      Toast.makeText(this,"Izinkan Ric Space memasang update dari sumber ini.",Toast.LENGTH_LONG).show();
+      try { startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+getPackageName()))); } catch(ActivityNotFoundException ignored) {}
       return;
     }
-
     try {
-      DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-      DownloadManager.Request request = new DownloadManager.Request(Uri.parse(LATEST_APK_URL));
-      request.setTitle("Ric Space update");
-      request.setDescription("Mengunduh versi terbaru Ric Space");
-      request.setMimeType(APK_MIME);
-      request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-      request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,
-        "Ric-Space-update-" + System.currentTimeMillis() + ".apk");
-
-      final long downloadId = manager.enqueue(request);
-      apkDownloadReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context context, Intent intent) {
-          if (!DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction())) return;
-          long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-          if (id != downloadId) return;
-          try {
-            Uri apkUri = manager.getUriForDownloadedFile(downloadId);
-            if (apkUri != null) installDownloadedApk(apkUri);
-            else Toast.makeText(MainActivity.this, "Download update gagal.", Toast.LENGTH_LONG).show();
-          } finally { unregisterApkReceiver(); }
-        }
-      };
-      IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) registerReceiver(apkDownloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-      else registerReceiver(apkDownloadReceiver, filter);
-      Toast.makeText(this, "Update sedang diunduh ke Download.", Toast.LENGTH_LONG).show();
-    } catch (Exception e) {
-      Toast.makeText(this, "Gagal memulai update: " + e.getMessage(), Toast.LENGTH_LONG).show();
-    }
+      DownloadManager m=(DownloadManager)getSystemService(DOWNLOAD_SERVICE);
+      DownloadManager.Request r=new DownloadManager.Request(Uri.parse(LATEST_APK_URL));
+      r.setTitle("Ric Space update"); r.setDescription("Mengunduh versi terbaru Ric Space"); r.setMimeType(APK_MIME);
+      r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+      r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,"Ric-Space-update-"+System.currentTimeMillis()+".apk");
+      final long id=m.enqueue(r);
+      apkDownloadReceiver=new BroadcastReceiver(){ public void onReceive(Context x,Intent i){ if(!DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(i.getAction()))return; if(i.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID,-1)!=id)return; try{Uri u=m.getUriForDownloadedFile(id); if(u!=null)installDownloadedApk(u);else Toast.makeText(MainActivity.this,"Download update gagal.",Toast.LENGTH_LONG).show();}finally{unregisterApkReceiver();}}};
+      IntentFilter f=new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE); if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.TIRAMISU)registerReceiver(apkDownloadReceiver,f,Context.RECEIVER_NOT_EXPORTED);else registerReceiver(apkDownloadReceiver,f);
+      Toast.makeText(this,"Update sedang diunduh ke Download.",Toast.LENGTH_LONG).show();
+    }catch(Exception e){Toast.makeText(this,"Gagal memulai update: "+e.getMessage(),Toast.LENGTH_LONG).show();}
   }
 
-  private void installDownloadedApk(Uri apkUri) {
-    try {
-      Intent intent = new Intent(Intent.ACTION_INSTALL_PACKAGE);
-      intent.setDataAndType(apkUri, APK_MIME);
-      intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-      startActivity(intent);
-    } catch (ActivityNotFoundException e) {
-      Toast.makeText(this, "Installer Android tidak tersedia.", Toast.LENGTH_LONG).show();
-    }
-  }
+  private void installDownloadedApk(Uri u){try{Intent i=new Intent(Intent.ACTION_INSTALL_PACKAGE);i.setDataAndType(u,APK_MIME);i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_ACTIVITY_NEW_TASK);startActivity(i);}catch(ActivityNotFoundException e){Toast.makeText(this,"Installer Android tidak tersedia.",Toast.LENGTH_LONG).show();}}
+  private void unregisterApkReceiver(){if(apkDownloadReceiver==null)return;try{unregisterReceiver(apkDownloadReceiver);}catch(Exception ignored){}apkDownloadReceiver=null;}
+  @Override protected void onDestroy(){unregisterApkReceiver();super.onDestroy();}
 
-  private void unregisterApkReceiver() {
-    if (apkDownloadReceiver == null) return;
-    try { unregisterReceiver(apkDownloadReceiver); } catch (Exception ignored) {}
-    apkDownloadReceiver = null;
-  }
+  private void scheduleAngelUiCleanup(){angelUiHandler.postDelayed(()->{WebView w=getBridge().getWebView();if(w==null)return;w.evaluateJavascript("(function(){var e=document.getElementById('ric-angel-shortcut');if(e)e.remove();})()",null);angelUiHandler.postDelayed(this::scheduleAngelUiCleanup,1000);},1200);}
+  private void schedulePluTimerWebViewFix(){pluTimerFixAttempts=0;pluTimerFixHandler.post(pluTimerFixRunnable);}
+  private final Runnable pluTimerFixRunnable=new Runnable(){public void run(){if(getBridge()==null||getBridge().getWebView()==null)return;String u=getBridge().getWebView().getUrl();if(u!=null&&u.contains("/apps/plu-timer/")){getBridge().getWebView().evaluateJavascript("javascript:(function(){try{if(!window.__ricPluTimerNotificationFix){window.__ricPluTimerNotificationFix=true;if(!('Notification'in window)){window.Notification=function(){return null};window.Notification.permission='denied';window.Notification.requestPermission=function(){return Promise.resolve('denied')}}else{var n=window.Notification.requestPermission;window.Notification.requestPermission=function(){try{var p=n&&n.call(window.Notification);if(p&&typeof p.catch==='function')p.catch(function(){})}catch(e){}return Promise.resolve(window.Notification.permission==='granted'?'granted':'denied')}}}}catch(e){}})()",null);return;}if(++pluTimerFixAttempts<30)pluTimerFixHandler.postDelayed(this,500);}};
+  @Override public void onWindowFocusChanged(boolean f){super.onWindowFocusChanged(f);if(f)enableImmersiveMode();}
+  private void enableImmersiveMode(){Window w=getWindow();if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.R){w.setDecorFitsSystemWindows(false);WindowInsetsController c=w.getInsetsController();if(c!=null){c.hide(WindowInsets.Type.statusBars()|WindowInsets.Type.navigationBars());c.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);}}else{w.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);w.getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|android.view.View.SYSTEM_UI_FLAG_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE);}}
 
-  @Override protected void onDestroy() {
-    unregisterApkReceiver();
-    super.onDestroy();
-  }
+  private static final class SpeedometerFullscreenBridge{private final Activity a;SpeedometerFullscreenBridge(Activity a){this.a=a;}@JavascriptInterface public void setSpeedometerLandscape(final boolean l){a.runOnUiThread(()->{a.setRequestedOrientation(l?ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE:ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);if(a instanceof MainActivity)((MainActivity)a).enableImmersiveMode();});}}
+  private final class UpdateBridge{@JavascriptInterface public void check(){runOnUiThread(MainActivity.this::manualUpdateCheck);}@JavascriptInterface public void updateNow(){runOnUiThread(MainActivity.this::downloadAndInstallUpdate);}@JavascriptInterface public String version(){return String.valueOf(getInstalledVersionCode());}}
 
-  private void scheduleAngelUiCleanup() {
-    angelUiHandler.postDelayed(() -> {
-      WebView webView = getBridge().getWebView();
-      if (webView == null) return;
-      webView.evaluateJavascript("(function(){var e=document.getElementById('ric-angel-shortcut');if(e)e.remove();})()", null);
-      angelUiHandler.postDelayed(this::scheduleAngelUiCleanup, 1000);
-    }, 1200);
-  }
-
-  private void schedulePluTimerWebViewFix() {
-    pluTimerFixAttempts = 0;
-    pluTimerFixHandler.post(pluTimerFixRunnable);
-  }
-
-  private final Runnable pluTimerFixRunnable = new Runnable() {
-    @Override public void run() {
-      if (getBridge() == null || getBridge().getWebView() == null) return;
-      String url = getBridge().getWebView().getUrl();
-      if (url != null && url.contains("/apps/plu-timer/")) {
-        getBridge().getWebView().evaluateJavascript("javascript:(function(){try{if(!window.__ricPluTimerNotificationFix){window.__ricPluTimerNotificationFix=true;if(!('Notification' in window)){window.Notification=function(){return null};window.Notification.permission='denied';window.Notification.requestPermission=function(){return Promise.resolve('denied')}}else{var nativePermission=window.Notification.requestPermission;window.Notification.requestPermission=function(){try{var p=nativePermission&&nativePermission.call(window.Notification);if(p&&typeof p.catch==='function'){p.catch(function(){})}}catch(e){}return Promise.resolve(window.Notification.permission==='granted'?'granted':'denied')}}}}catch(e){}})()", null);
-        return;
-      }
-      if (++pluTimerFixAttempts < 30) pluTimerFixHandler.postDelayed(this, 500);
-    }
-  };
-
-  @Override public void onWindowFocusChanged(boolean hasFocus) {
-    super.onWindowFocusChanged(hasFocus);
-    if (hasFocus) enableImmersiveMode();
-  }
-
-  private void enableImmersiveMode() {
-    Window window = getWindow();
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-      window.setDecorFitsSystemWindows(false);
-      WindowInsetsController controller = window.getInsetsController();
-      if (controller != null) {
-        controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
-        controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-      }
-    } else {
-      window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
-      window.getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
-    }
-  }
-
-  private static final class SpeedometerFullscreenBridge {
-    private final Activity activity;
-    SpeedometerFullscreenBridge(Activity activity) { this.activity = activity; }
-    @JavascriptInterface public void setSpeedometerLandscape(final boolean landscape) {
-      activity.runOnUiThread(() -> {
-        activity.setRequestedOrientation(landscape ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        if (activity instanceof MainActivity) ((MainActivity) activity).enableImmersiveMode();
-      });
-    }
-  }
-
-  /** Native bridge for the in-app updater. The web settings menu can call this
-   * without needing to know anything about GitHub, URLs, or Android storage. */
-  private final class UpdateBridge {
-    @JavascriptInterface public void check() { runOnUiThread(MainActivity.this::manualUpdateCheck); }
-    @JavascriptInterface public void updateNow() { runOnUiThread(MainActivity.this::downloadAndInstallUpdate); }
-    @JavascriptInterface public String version() { return String.valueOf(getInstalledVersionCode()); }
-  }
-
-  @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-    super.onActivityResult(requestCode, resultCode, data);
-    if (requestCode == AiraBridge.LOCAL_RESTORE_REQUEST && resultCode == RESULT_OK && data != null) AiraBridge.importLocalBackup(data.getData());
-  }
-
-  @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-    super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-    if (requestCode == RideBridge.LOCATION_PERMISSION_REQUEST && RideBridge.hasLocationPermission(this)) RideLocationService.start(this);
-    if (requestCode == AiraBridge.NOTIFICATION_PERMISSION_REQUEST) {
-      AiraBridge.scheduleDailyRoutine(this);
-      AiraBridge.scheduleTodayTest(this);
-    }
-  }
+  @Override protected void onActivityResult(int r,int c,Intent d){super.onActivityResult(r,c,d);if(r==AiraBridge.LOCAL_RESTORE_REQUEST&&c==RESULT_OK&&d!=null)AiraBridge.importLocalBackup(d.getData());}
+  @Override public void onRequestPermissionsResult(int r,String[] p,int[] g){super.onRequestPermissionsResult(r,p,g);if(r==RideBridge.LOCATION_PERMISSION_REQUEST&&RideBridge.hasLocationPermission(this))RideLocationService.start(this);if(r==AiraBridge.NOTIFICATION_PERMISSION_REQUEST){AiraBridge.scheduleDailyRoutine(this);AiraBridge.scheduleTodayTest(this);}}
 }
