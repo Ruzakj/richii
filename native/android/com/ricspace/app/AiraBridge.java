@@ -55,7 +55,7 @@ public final class AiraBridge {
         + "function start(){try{window.RicAiraNative&&window.RicAiraNative.startCall&&window.RicAiraNative.startCall()}catch(e){}}"
         + "function bind(){document.querySelectorAll('button.video').forEach(function(b){if(b.dataset.angelCallBound)return;b.dataset.angelCallBound='1';b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();start()},true)})}"
         + "function add(){if(document.getElementById('ric-angel-shortcut'))return;var b=document.createElement('button');b.id='ric-angel-shortcut';b.type='button';b.setAttribute('aria-label','Telepon Angel');b.innerHTML='<span>✦</span> Angel';b.style.cssText='position:fixed;right:16px;bottom:88px;z-index:2147483647;border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:11px 14px;background:linear-gradient(135deg,#7c5cff,#b14cff);box-shadow:0 12px 32px rgba(74,47,180,.38);color:#fff;font:700 14px system-ui,-apple-system,sans-serif;letter-spacing:.01em';b.onclick=start;document.body.appendChild(b)}"
-        + "function backup(){var box=document.querySelector('.backup-actions');if(!box||document.getElementById('ric-local-backup'))return;var row=document.createElement('div');row.id='ric-local-backup';row.style.cssText='display:flex;gap:8px;margin-top:10px';var save=document.createElement('button'),restore=document.createElement('button');save.type=restore.type='button';save.textContent='Backup lokal';restore.textContent='Pulihkan file';[save,restore].forEach(function(x){x.style.cssText='flex:1;border:0;border-radius:10px;padding:10px;background:#292929;color:#fff;font:600 12px system-ui'});save.onclick=function(){try{var raw=localStorage.getItem('ric-companion-v1')||'';window.RicAiraNative&&window.RicAiraNative.exportLocalBackup&&window.RicAiraNative.exportLocalBackup(btoa(unescape(encodeURIComponent(raw))))}catch(e){}};restore.onclick=function(){try{window.RicAiraNative&&window.RicAiraNative.restoreLocalBackup&&window.RicAiraNative.restoreLocalBackup()}catch(e){}};row.append(save,restore);box.parentNode.appendChild(row);window.addEventListener('aira-local-backup-status',function(e){var s=document.getElementById('backupStatus');if(s)s.textContent=e.detail})}"
+        + "function backup(){var box=document.querySelector('.backup-actions');if(!box||document.getElementById('ric-local-backup'))return;var row=document.createElement('div');row.id='ric-local-backup';row.style.cssText='display:flex;gap:8px;margin-top:10px';var save=document.createElement('button'),restore=document.createElement('button');save.type=restore.type='button';save.textContent='Backup ke Download';restore.textContent='Pulihkan dari file';[save,restore].forEach(function(x){x.style.cssText='flex:1;border:0;border-radius:10px;padding:10px;background:#292929;color:#fff;font:600 12px system-ui'});save.onclick=function(){try{var raw=localStorage.getItem('ric-companion-v1')||'';if(!raw){window.dispatchEvent(new CustomEvent('aira-local-backup-status',{detail:'Belum ada data Angel untuk dibackup'}));return}window.RicAiraNative&&window.RicAiraNative.exportLocalBackup&&window.RicAiraNative.exportLocalBackup(btoa(unescape(encodeURIComponent(raw))))}catch(e){window.dispatchEvent(new CustomEvent('aira-local-backup-status',{detail:'Backup Angel gagal'}))}};restore.onclick=function(){try{window.RicAiraNative&&window.RicAiraNative.restoreLocalBackup&&window.RicAiraNative.restoreLocalBackup()}catch(e){}};row.append(save,restore);box.parentNode.appendChild(row);window.addEventListener('aira-local-backup-status',function(e){var s=document.getElementById('backupStatus');if(s)s.textContent=e.detail})}"
         + "bind();add();backup();setTimeout(function(){bind();backup()},1200)})()",
       null);
     view.postDelayed(addShortcut, 1300);
@@ -98,20 +98,53 @@ public final class AiraBridge {
   public void exportLocalBackup(String base64Payload) {
     if (activity == null || base64Payload == null || base64Payload.isEmpty()) return;
     activity.runOnUiThread(() -> {
+      Uri uri = null;
       try {
         byte[] data = Base64.decode(base64Payload, Base64.DEFAULT);
+        String raw = new String(data, java.nio.charset.StandardCharsets.UTF_8);
+        JSONObject source = new JSONObject(raw);
+        JSONObject backup = new JSONObject();
+        backup.put("format", "ric-space-angel-backup");
+        backup.put("version", 1);
+        backup.put("exportedAt", System.currentTimeMillis());
+        backup.put("app", "Ric Space");
+        backup.put("data", source);
+        byte[] outputData = backup.toString(2).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
         ContentValues values = new ContentValues();
-        values.put(MediaStore.Downloads.DISPLAY_NAME, "angel-chat-" + System.currentTimeMillis() + ".json");
+        values.put(MediaStore.Downloads.DISPLAY_NAME, "Ric_Space_Angel_Backup_" + System.currentTimeMillis() + ".json");
         values.put(MediaStore.Downloads.MIME_TYPE, "application/json");
-        values.put(MediaStore.MediaColumns.RELATIVE_PATH, "Download/Ric Space");
-        android.net.Uri uri = activity.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
-        if (uri == null) throw new Exception("Lokasi Download tidak tersedia");
-        try (OutputStream output = activity.getContentResolver().openOutputStream(uri)) { output.write(data); }
-        ((MainActivity) activity).getBridge().getWebView().evaluateJavascript("window.dispatchEvent(new CustomEvent('aira-local-backup-status',{detail:'Backup lokal tersimpan di Download/Ric Space'}))", null);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+          values.put(MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS);
+          values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+        }
+        uri = activity.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        if (uri == null) throw new Exception("Folder Download tidak tersedia");
+        try (OutputStream output = activity.getContentResolver().openOutputStream(uri)) {
+          if (output == null) throw new Exception("File tidak dapat dibuka");
+          output.write(outputData);
+          output.flush();
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+          ContentValues done = new ContentValues();
+          done.put(MediaStore.MediaColumns.IS_PENDING, 0);
+          activity.getContentResolver().update(uri, done, null, null);
+        }
+        notifyBackupStatus("Backup Angel tersimpan di folder Download");
       } catch (Exception error) {
-        ((MainActivity) activity).getBridge().getWebView().evaluateJavascript("window.dispatchEvent(new CustomEvent('aira-local-backup-status',{detail:'Backup lokal gagal disimpan'}))", null);
+        if (uri != null) {
+          try { activity.getContentResolver().delete(uri, null, null); } catch (Exception ignored) {}
+        }
+        notifyBackupStatus("Backup Angel gagal disimpan");
       }
     });
+  }
+
+  private static void notifyBackupStatus(String message) {
+    if (activity == null) return;
+    String safe = JSONObject.quote(message);
+    ((MainActivity) activity).getBridge().getWebView().evaluateJavascript(
+      "window.dispatchEvent(new CustomEvent('aira-local-backup-status',{detail:" + safe + "}))", null);
   }
 
   @JavascriptInterface
@@ -131,10 +164,24 @@ public final class AiraBridge {
       java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
       byte[] buffer = new byte[8192]; int count;
       while ((count = input.read(buffer)) != -1) bytes.write(buffer, 0, count);
-      String encoded = Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP);
-      String script = "(function(){try{localStorage.setItem('ric-companion-v1',decodeURIComponent(escape(atob('" + encoded + "'))));location.reload()}catch(e){window.dispatchEvent(new CustomEvent('aira-local-backup-status',{detail:'File backup tidak valid'}))}})()";
+      String raw = new String(bytes.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+      JSONObject file = new JSONObject(raw);
+      String payload;
+      if ("ric-space-angel-backup".equals(file.optString("format"))) {
+        JSONObject data = file.optJSONObject("data");
+        if (data == null) throw new Exception("Data Angel tidak ditemukan");
+        payload = data.toString();
+      } else {
+        // Accept the previous backup format for backward compatibility.
+        new JSONObject(raw);
+        payload = raw;
+      }
+      String encoded = Base64.encodeToString(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8), Base64.NO_WRAP);
+      String script = "(function(){try{var raw=decodeURIComponent(escape(atob('" + encoded + "')));JSON.parse(raw);localStorage.setItem('ric-companion-v1',raw);location.reload()}catch(e){window.dispatchEvent(new CustomEvent('aira-local-backup-status',{detail:'File backup Angel tidak valid'}))}})()";
       activity.runOnUiThread(() -> ((MainActivity) activity).getBridge().getWebView().evaluateJavascript(script, null));
-    } catch (Exception ignored) {}
+    } catch (Exception error) {
+      notifyBackupStatus("File backup Angel tidak valid");
+    }
   }
 
   @JavascriptInterface
@@ -169,7 +216,6 @@ public final class AiraBridge {
   }
 
   static void scheduleMorningCalls(Context context) {
-    // 3-5 local calls. The first starts at 05.00; the next calls vary by 5-10 minutes.
     int total = 3 + (int) (Math.random() * 3);
     long when = System.currentTimeMillis();
     for (int i = 0; i < total; i++) {
@@ -201,8 +247,6 @@ public final class AiraBridge {
     String testKey = "angel_call_test_20260818_1310";
     if (prefs.getBoolean(testKey, false)) return;
     long when = target.getTimeInMillis();
-    // If the APK is first opened after 13.10 today, give Ric a reliable late test
-    // instead of silently dropping it. The fallback expires at 13.30 WIB.
     Calendar fallbackLimit = Calendar.getInstance();
     fallbackLimit.set(2026, Calendar.AUGUST, 18, 13, 30, 0);
     if (when <= now.getTimeInMillis()) {
