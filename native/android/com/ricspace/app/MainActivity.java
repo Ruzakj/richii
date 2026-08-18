@@ -4,6 +4,8 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -14,15 +16,23 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
   private final Handler pluTimerFixHandler = new Handler(Looper.getMainLooper());
   private int pluTimerFixAttempts = 0;
+  private final Handler angelUiHandler = new Handler(Looper.getMainLooper());
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-    RideBridge.attach(this, getBridge().getWebView());
-    AiraBridge.attach(this, getBridge().getWebView());
+    WebView webView = getBridge().getWebView();
+    // The app is a remote VibeTube shell. Always bypass the WebView HTTP cache so
+    // a new Vercel revision (including Angel UI) is visible without reinstalling.
+    webView.clearCache(true);
+    webView.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
+    RideBridge.attach(this, webView);
+    AiraBridge.attach(this, webView);
     enableImmersiveMode();
     openCompanionIfRequested(getIntent());
     schedulePluTimerWebViewFix();
+    scheduleAngelUiCleanup();
+    webView.postDelayed(() -> webView.loadUrl("https://vibetube-cloud.vercel.app/?app=android&refresh=1"), 180);
   }
 
   @Override
@@ -31,14 +41,29 @@ public class MainActivity extends BridgeActivity {
     setIntent(intent);
     openCompanionIfRequested(intent);
     schedulePluTimerWebViewFix();
+    scheduleAngelUiCleanup();
   }
 
   private void openCompanionIfRequested(Intent intent) {
     if (intent == null || !intent.getBooleanExtra("open_companion", false)) return;
     getBridge().getWebView().postDelayed(
-      () -> getBridge().getWebView().loadUrl("https://vibetube-cloud.vercel.app/ric-companion.html?proactive=1"),
+      () -> getBridge().getWebView().loadUrl("https://vibetube-cloud.vercel.app/ric-companion.html?proactive=1&fresh=1"),
       350
     );
+  }
+
+  /** Remove the old native Angel shortcut. The single production floating button
+   * is owned by angel-shortcut.js so PWA and APK have identical UI/behavior. */
+  private void scheduleAngelUiCleanup() {
+    angelUiHandler.postDelayed(() -> {
+      WebView webView = getBridge().getWebView();
+      if (webView == null) return;
+      webView.evaluateJavascript(
+        "(function(){var e=document.getElementById('ric-angel-shortcut');if(e)e.remove();})()",
+        null
+      );
+      angelUiHandler.postDelayed(this::scheduleAngelUiCleanup, 1000);
+    }, 1200);
   }
 
   /**
