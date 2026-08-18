@@ -100,7 +100,7 @@ public final class AiraBridge {
         ContentValues values = new ContentValues();
         values.put(MediaStore.Downloads.DISPLAY_NAME, "angel-chat-" + System.currentTimeMillis() + ".json");
         values.put(MediaStore.Downloads.MIME_TYPE, "application/json");
-        values.put(MediaStore.Downloads.RELATIVE_PATH, "Download/Ric Space");
+        values.put(MediaStore.MediaColumns.RELATIVE_PATH, "Download/Ric Space");
         android.net.Uri uri = activity.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
         if (uri == null) throw new Exception("Lokasi Download tidak tersedia");
         try (OutputStream output = activity.getContentResolver().openOutputStream(uri)) { output.write(data); }
