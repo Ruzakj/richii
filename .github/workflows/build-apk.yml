@@ -46,8 +46,6 @@ jobs:
 
           perl -0pi -e 's/dependencies \{/dependencies {\n    implementation "com.google.android.gms:play-services-location:21.3.0"\n    implementation "androidx.work:work-runtime:2.9.0"/' android/app/build.gradle
 
-          # Every build gets a monotonically increasing versionCode so Android can
-          # install it as an update instead of treating it as a separate app.
           VERSION_CODE=$((100000 + ${{ github.run_number }}))
           VERSION_NAME="1.0.${{ github.run_number }}"
           perl -0pi -e "s/defaultConfig \{/defaultConfig {\n        versionCode ${VERSION_CODE}\n        versionName '${VERSION_NAME}'/" android/app/build.gradle
@@ -57,13 +55,17 @@ jobs:
           perl -0pi -e 's#<activity#<service android:name=".RideLocationService" android:exported="false" android:foregroundServiceType="location" />\n        <receiver android:name=".AiraCallReceiver" android:exported="false" />\n        <activity android:name=".AiraCallActivity" android:exported="false" android:showWhenLocked="true" android:turnScreenOn="true" />\n        <activity#' android/app/src/main/AndroidManifest.xml
 
       - name: Configure stable release signing when secrets are available
-        if: ${{ secrets.KEYSTORE_B64 != '' && secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+        if: ${{ vars.HAS_RELEASE_SIGNING == 'true' }}
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "HAS_RELEASE_SIGNING=true but signing secrets are incomplete."
+            exit 1
+          fi
           echo "$KEYSTORE_B64" | base64 --decode > android/ricspace-release.keystore
           cat >> android/app/build.gradle <<'EOF'
 
@@ -88,7 +90,7 @@ jobs:
         run: npx cap sync android
 
       - name: Build signed release APK
-        if: ${{ secrets.KEYSTORE_B64 != '' && secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+        if: ${{ vars.HAS_RELEASE_SIGNING == 'true' }}
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -100,7 +102,7 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/Ric-Space.apk
 
       - name: Build debug APK (bootstrap only)
-        if: ${{ !(secrets.KEYSTORE_B64 != '' && secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '') }}
+        if: ${{ vars.HAS_RELEASE_SIGNING != 'true' }}
         run: |
           chmod +x android/gradlew
           cd android
@@ -116,7 +118,7 @@ jobs:
           retention-days: 14
 
       - name: Publish signed APK as latest GitHub Release
-        if: ${{ secrets.KEYSTORE_B64 != '' && secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+        if: ${{ vars.HAS_RELEASE_SIGNING == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: v1.0.${{ github.run_number }}
