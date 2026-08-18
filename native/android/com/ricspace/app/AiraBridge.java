@@ -19,6 +19,7 @@ import androidx.core.content.ContextCompat;
 
 import java.util.Calendar;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.json.JSONObject;
 
 public final class AiraBridge {
   static final int NOTIFICATION_PERMISSION_REQUEST = 912;
