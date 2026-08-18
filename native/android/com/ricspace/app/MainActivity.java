@@ -2,6 +2,8 @@ package com.ricspace.app;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -10,6 +12,9 @@ import android.view.WindowManager;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+  private final Handler pluTimerFixHandler = new Handler(Looper.getMainLooper());
+  private int pluTimerFixAttempts = 0;
+
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -17,6 +22,7 @@ public class MainActivity extends BridgeActivity {
     AiraBridge.attach(this, getBridge().getWebView());
     enableImmersiveMode();
     openCompanionIfRequested(getIntent());
+    schedulePluTimerWebViewFix();
   }
 
   @Override
@@ -24,6 +30,7 @@ public class MainActivity extends BridgeActivity {
     super.onNewIntent(intent);
     setIntent(intent);
     openCompanionIfRequested(intent);
+    schedulePluTimerWebViewFix();
   }
 
   private void openCompanionIfRequested(Intent intent) {
@@ -33,6 +40,55 @@ public class MainActivity extends BridgeActivity {
       350
     );
   }
+
+  /**
+   * Android WebView can expose Notification.requestPermission() in a state where
+   * the returned Promise never settles. PLU Timer used to await that Promise
+   * before starting its countdown, so the APK could appear frozen while the PWA
+   * worked normally. This app-side shim makes notification permission non-blocking
+   * without changing the production UI, Angel/floating UI, or PWA behavior.
+   */
+  private void schedulePluTimerWebViewFix() {
+    pluTimerFixAttempts = 0;
+    pluTimerFixHandler.post(pluTimerFixRunnable);
+  }
+
+  private final Runnable pluTimerFixRunnable = new Runnable() {
+    @Override
+    public void run() {
+      if (getBridge() == null || getBridge().getWebView() == null) return;
+
+      String url = getBridge().getWebView().getUrl();
+      if (url != null && url.contains("/apps/plu-timer/")) {
+        getBridge().getWebView().evaluateJavascript(
+          "javascript:(function(){" +
+          "try{" +
+          "if(!window.__ricPluTimerNotificationFix){" +
+          "window.__ricPluTimerNotificationFix=true;" +
+          "if(!('Notification' in window)){" +
+          "window.Notification=function(){return null};" +
+          "window.Notification.permission='denied';" +
+          "window.Notification.requestPermission=function(){return Promise.resolve('denied')};" +
+          "}else{" +
+          "var nativePermission=window.Notification.requestPermission;" +
+          "window.Notification.requestPermission=function(){" +
+          "try{var p=nativePermission&&nativePermission.call(window.Notification);if(p&&typeof p.catch==='function'){p.catch(function(){})}}catch(e){}" +
+          "return Promise.resolve(window.Notification.permission==='granted'?'granted':'denied');" +
+          "};" +
+          "}" +
+          "}" +
+          "}catch(e){}" +
+          "})()",
+          null
+        );
+        return;
+      }
+
+      if (++pluTimerFixAttempts < 30) {
+        pluTimerFixHandler.postDelayed(this, 500);
+      }
+    }
+  };
 
   @Override
   public void onWindowFocusChanged(boolean hasFocus) {
