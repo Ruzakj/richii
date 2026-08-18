@@ -86,7 +86,7 @@ public final class AiraBridge {
       payload.put("duration", 0);
       payload.put("detail", directionLabel + " · " + statusLabel + durationLabel);
       payload.put("at", System.currentTimeMillis());
-      String script = "window.RicAiraChat&&window.RicAiraChat.recordCall(" + JSONObject.quote(payload.toString()) + ")";
+      String script = "window.RicAiraChat&&window.RicAiraChat.recordCall(" + payload.toString() + ")";
       activity.runOnUiThread(() -> {
         WebView page = ((MainActivity) activity).getBridge().getWebView();
         page.evaluateJavascript(script, null);
