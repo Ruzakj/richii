@@ -78,10 +78,13 @@ public final class AiraBridge {
     if (activity == null) return;
     try {
       JSONObject payload = new JSONObject();
+      String directionLabel = "outgoing".equals(direction) ? "Panggilan keluar" : "Panggilan masuk";
+      String statusLabel = "ended".equals(outcome) ? "selesai" : ("declined".equals(outcome) ? "ditolak" : ("missed".equals(outcome) ? "tidak dijawab" : "diangkat"));
+      String durationLabel = durationSeconds > 0 ? " · " + (durationSeconds / 60) + " mnt " + (durationSeconds % 60) + " dtk" : "";
       payload.put("direction", direction);
       payload.put("outcome", outcome);
-      payload.put("duration", durationSeconds);
-      payload.put("detail", detail);
+      payload.put("duration", 0);
+      payload.put("detail", directionLabel + " · " + statusLabel + durationLabel);
       payload.put("at", System.currentTimeMillis());
       String script = "window.RicAiraChat&&window.RicAiraChat.recordCall(" + JSONObject.quote(payload.toString()) + ")";
       activity.runOnUiThread(() -> {
